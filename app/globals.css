@@ -1,0 +1,579 @@
+@import "tailwindcss";
+
+/* ===============================
+   🎨 テーマ変数（ライト＆ダーク）
+   =============================== */
+
+:root {
+  --background: #fff7f0;
+  --foreground: #111111;
+  --accent: #ff914d;
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --card-blur: 18px;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --surface-bg: #ffffff;
+  --surface-border: rgba(0, 0, 0, 0.06);
+  --color-text-primary: #111111;
+  --color-text-secondary: #374151;
+  --color-text-muted: #6b7280;
+}
+
+/* 🌙 ダークモード */
+:root[data-theme="dark"] {
+  --background: linear-gradient(180deg, #0a0f1c 0%, #131e33 45%, #1c2945 100%);
+  --foreground: #f3f6fc;
+  --accent: #ff9550;
+  --card-bg: linear-gradient(180deg, rgba(35, 46, 75, 0.88) 0%, rgba(20, 28, 45, 0.9) 100%);
+  --surface-bg: rgba(40, 52, 82, 0.85);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --color-text-primary: #f9fbff;
+  --color-text-secondary: #d4d8e3;
+  --color-text-muted: #9ba3b7;
+}
+
+/* ===============================
+   ベーススタイル
+   =============================== */
+
+body {
+  background: var(--background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  transition: background 400ms ease, color 400ms ease;
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+h1, h2, h3, .title {
+  color: var(--color-text-primary);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.08), 0 0 2px rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.03em;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* ===============================
+   入力フィールド
+   =============================== */
+
+.input {
+  background: var(--surface-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--surface-border);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  outline: none;
+  width: 100%;
+  transition: all 0.25s ease;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 145, 77, 0.25);
+  transform: scale(1.01);
+}
+
+/* ===============================
+   カード
+   =============================== */
+
+.card {
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--card-blur)) saturate(140%);
+  border-radius: 1.5rem;
+  box-shadow: 0 14px 40px var(--shadow-color);
+  padding: 2rem;
+  border: 1px solid var(--surface-border);
+  color: var(--color-text-primary);
+  animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, background 0.4s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+}
+
+/* ===============================
+   ボタン
+   =============================== */
+
+.surface-btn,
+.continue-btn,
+.barcode-btn {
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  user-select: none;
+}
+
+.surface-btn {
+  background: var(--surface-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 0.75rem 1rem;
+}
+
+.surface-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.05);
+}
+
+.continue-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+  padding: 0.9rem 1.3rem;
+  width: 100%;
+}
+
+.continue-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  filter: brightness(1.1);
+}
+
+.barcode-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 1rem 1.4rem;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+}
+
+.barcode-btn:hover {
+  transform: translateY(-3px) scale(1.04);
+  filter: brightness(1.1);
+}
+
+/* ===============================
+   アニメーション
+   =============================== */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bounce-down {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(2px); }
+}
+
+/* ===============================
+   食材追加モーダル・キャンセルボタン
+   =============================== */
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.25s ease;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
+}
+
+/* ===============================
+   カレンダーアイコンの視認性
+   =============================== */
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.5);
+  opacity: 0.9;
+}
+input[type="date"] { color-scheme: dark; }
+
+/* ===============================
+   献立ウィザード調整
+   =============================== */
+
+.wizard-section {
+  background: rgba(35, 45, 70, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.wizard-title {
+  font-weight: 700;
+  font-size: 1.25rem;
+  transition: color 0.3s ease;
+}
+
+.wizard-subtitle {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  transition: color 0.3s ease;
+}
+
+.wizard-label { color: inherit !important; }
+
+.wizard-input {
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  width: 100%;
+  transition: all 0.25s ease;
+}
+
+/* ライト／ダークモード切り替え */
+:root:not([data-theme="dark"]) .wizard-title,
+:root:not([data-theme="dark"]) .wizard-subtitle,
+:root:not([data-theme="dark"]) .wizard-label,
+:root:not([data-theme="dark"]) .wizard-input,
+:root:not([data-theme="dark"]) .wizard-note {
+  color: #111827 !important;
+  background: transparent !important;
+}
+
+:root[data-theme="dark"] .wizard-title,
+:root[data-theme="dark"] .wizard-subtitle,
+:root[data-theme="dark"] .wizard-label,
+:root[data-theme="dark"] .wizard-input,
+:root[data-theme="dark"] .wizard-note {
+  color: #f4f7fb !important;
+}
+
+/* 入力の背景 */
+:root:not([data-theme="dark"]) .wizard-input {
+  background: #ffffff !important;
+  border: 1px solid rgba(0,0,0,0.06) !important;
+}
+:root[data-theme="dark"] .wizard-input {
+  background: rgba(255,255,255,0.02) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+/* 日付アイコン */
+:root:not([data-theme="dark"]) input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: 0.95 !important;
+}
+
+/* 小注釈 */
+:root:not([data-theme="dark"]) .wizard-note { color: #6b7280 !important; }
+:root[data-theme="dark"] .wizard-note { color: #9ba3b7 !important; }
+
+/* ===============================
+   Logout Button (Dark Mode Fix)
+   =============================== */
+
+:root:not([data-theme="dark"]) .bg-gray-200 {
+  background-color: rgb(229 231 235 / 1) !important;
+  color: #111827 !important;
+}
+
+:root[data-theme="dark"] .bg-gray-200 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f9fafb !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+:root[data-theme="dark"] .bg-gray-200:hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  transition: background-color 0.25s ease;
+}
+
+/* ===============================
+   レスポンシブ
+   =============================== */
+
+@media (max-width: 640px) {
+  .card { padding: 1.4rem; }
+}
+/* Terms / Privacy 専用テーマ */
+:root:not([data-theme="dark"]) .legal-text {
+  color: #111827;
+}
+:root[data-theme="dark"] .legal-text {
+  color: #e5e7eb;
+}
+
+/* ---------- IngredientList / modal theme helpers ---------- */
+
+/* ingredient text */
+.ingredient-name {
+  color: var(--color-text-primary);
+  transition: color 220ms ease;
+  font-weight: 600;
+}
+.ingredient-meta {
+  color: var(--color-text-secondary);
+  transition: color 220ms ease;
+}
+.ingredient-qty {
+  color: var(--color-text-secondary);
+}
+
+/* menu button (More) */
+.menu-button {
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 180ms ease, color 180ms ease;
+}
+.menu-button:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* menu panel actions (edit / delete) */
+.menu-action {
+  transition: background 160ms ease, color 160ms ease;
+  font-weight: 600;
+}
+
+/* edit button style */
+.edit-action {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--color-text-primary);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 0.5rem;
+  transition: all 160ms ease;
+}
+
+.edit-action:hover {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: #fff; /* hoverで白文字に */
+}
+
+/* delete button style */
+.delete-action {
+  background: color-mix(in srgb, #ef4444 8%, transparent); /* Tailwind red-500系 */
+  color: #b91c1c; /* Tailwind red-700 */
+  border: 1px solid color-mix(in srgb, #ef4444 18%, transparent);
+  border-radius: 0.5rem;
+  transition: all 160ms ease;
+}
+
+.delete-action:hover {
+  background: color-mix(in srgb, #ef4444 25%, transparent);
+  color: #fff; /* hoverで白文字に */
+}
+
+
+/* modal overlay & card (theme aware) */
+.modal-overlay { /* wrapper */
+  pointer-events: auto;
+}
+.modal-backdrop {
+  background: rgba(0,0,0,0.5);
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(2px);
+}
+.modal-card {
+  background: var(--card-bg);
+  border: 1px solid var(--surface-border);
+  color: var(--color-text-primary);
+}
+
+/* AddEditModal - inputs and buttons */
+.input-field {
+  background: var(--surface-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--surface-border);
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  outline: none;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+.input-field:focus {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  border-color: color-mix(in srgb, var(--accent) 50%, #0000);
+}
+
+/* cancel / continue buttons adapt */
+.cancel-btn {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--surface-border);
+  padding: 0.6rem 1rem;
+  border-radius: 9999px;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  box-shadow: none !important; /* ✅ 太枠防止 */
+}
+
+.cancel-btn:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent); /* ✅ hover時少し明るく */
+}
+
+.continue-btn {
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 9999px;
+  border: none;
+  box-shadow: none; /* ✅ 太枠防止 */
+}
+
+
+/* ensure small text colors for wizard / badges align */
+.badge {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--color-text-primary);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 12px;
+}
+
+/* responsive tweaks */
+@media (max-width: 640px) {
+  .modal-card { padding: 1rem; }
+}
+
+/* Accessibility: focus */
+.menu-button:focus, .menu-action:focus, .input-field:focus, .continue-btn:focus {
+  outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  outline-offset: 3px;
+}
+
+/* ===============================
+   IngredientList / Modal - Theme-aware tweaks
+   =============================== */
+
+/* 行の最小高さ・余白調整（角丸をやわらげる） */
+.ingredient-row {
+  background: transparent;
+}
+
+/* テキスト（優先して CSS 変数を使う） */
+.ingredient-name {
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+.ingredient-expiry,
+.ingredient-qty {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+/* More ボタンの微調整（アクセシビリティ） */
+.ingredient-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+}
+
+/* アクションメニュー（ボタン群） */
+.action-menu {
+  /* 右寄せの小さな行として表示。背景は透過気味 */
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* 基本アクションボタン */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: transform 160ms ease, background 180ms ease, color 180ms ease;
+}
+
+/* ライトモード: 編集 = 薄だいだい背景、テキストは濃いだいだい */
+:root:not([data-theme="dark"]) .action-edit {
+  background: rgba(255,145,77,0.10); /* 薄だいだい */
+  color: #ff7a2a;
+  border: 1px solid rgba(255,145,77,0.14);
+}
+:root:not([data-theme="dark"]) .action-edit:hover {
+  background: rgba(255,145,77,0.14);
+  transform: translateY(-2px);
+}
+
+/* ライトモード: 削除 = 薄赤背景 */
+:root:not([data-theme="dark"]) .action-delete {
+  background: rgba(239,68,68,0.08);
+  color: #c53030;
+  border: 1px solid rgba(239,68,68,0.10);
+}
+:root:not([data-theme="dark"]) .action-delete:hover {
+  background: rgba(239,68,68,0.12);
+  transform: translateY(-2px);
+}
+
+/* ダークモード: 編集 = 青系、削除 = 赤系（コントラスト高め） */
+:root[data-theme="dark"] .action-edit {
+  background: rgba(59,130,246,0.12); /* blue-500 透明 */
+  color: #93c5fd; /* blue-300 */
+  border: 1px solid rgba(147,197,253,0.08);
+}
+:root[data-theme="dark"] .action-edit:hover {
+  background: rgba(59,130,246,0.18);
+  transform: translateY(-2px);
+}
+
+:root[data-theme="dark"] .action-delete {
+  background: rgba(239,68,68,0.12);
+  color: #fecaca;
+  border: 1px solid rgba(252,165,165,0.08);
+}
+:root[data-theme="dark"] .action-delete:hover {
+  background: rgba(239,68,68,0.16);
+  transform: translateY(-2px);
+}
+
+/* ラベル（ボタン内の文字） */
+.action-label {
+  display: inline-block;
+  line-height: 1;
+}
+
+/* モーダルカード（AddEditModal を内包する要素） */
+/* ライト/ダークで見やすい背景を指定（--card-bg / --surface-bg を使う） */
+.modal-card {
+  background: var(--card-bg);
+  border: 1px solid var(--surface-border);
+  color: var(--color-text-primary);
+  border-radius: 1rem;
+  padding: 0.75rem;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+}
+
+/* モーダル内の背景（AddEditModal 自身は既にスタイル済み） */
+/* 例えば react-datepicker のカレンダー等のコントラスト確保の補助 */
+.modal-card .react-datepicker__header,
+.modal-card .react-datepicker__current-month,
+.modal-card .react-datepicker__day-name,
+.modal-card .react-datepicker__day {
+  color: var(--color-text-primary) !important;
+}
+
+/* クリックして閉じるときのオーバーレイ（背景暗転） */
+/* 既に bg-black/50 を使っていますが、テーマによっては透明度を微調整 */
+:root:not([data-theme="dark"]) .modal-overlay {
+  background: rgba(0,0,0,0.45);
+}
+:root[data-theme="dark"] .modal-overlay {
+  background: rgba(0,0,0,0.6);
+}
+
+/* 小さいスクリーンでの余白調整 */
+@media (max-width: 640px) {
+  .action-label { display: none; } /* スマホではアイコンだけにしてすっきり */
+}
