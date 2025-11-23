@@ -1,6 +1,6 @@
 // app/api/menu/wizard/candidates/route.ts
 import { NextResponse } from "next/server";
-import { callOpenAIWithTimeout, extractTextFromResponse } from "@/lib/openai";
+import { callOpenAIOnce, extractTextFromResponse } from "@/lib/openai";
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 - 出力はJSON配列で
 `;
 
-    const resp = await callOpenAIWithTimeout({
+    const resp = await callOpenAIOnce({
       model: "gpt-4o-mini",
       input: [{ role: "user", content: prompt }],
       max_output_tokens: 200,

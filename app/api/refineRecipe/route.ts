@@ -1,6 +1,6 @@
 // app/api/refineRecipe/route.ts
 import { NextResponse } from "next/server";
-import { callOpenAIWithTimeout, extractTextFromResponse } from "@/lib/openai";
+import { callOpenAIOnce, extractTextFromResponse } from "@/lib/openai";
 import { rateLimit } from "@/lib/rateLimiter";
 
 export async function POST(req: Request) {
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 各ステップは 50-120語程度で、実行時の温度・時間の目安を含めてください。
 `;
 
-    const resp = await callOpenAIWithTimeout({
+    const resp = await callOpenAIOnce({
       model: "gpt-4o-mini",
       input: prompt,
       max_output_tokens: 1200,

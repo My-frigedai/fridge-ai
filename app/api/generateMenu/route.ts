@@ -2,7 +2,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { callOpenAIWithTimeout, extractTextFromResponse } from "@/lib/openai";
+import { callOpenAIOnce, extractTextFromResponse } from "@/lib/openai";
 import { rateLimit } from "@/lib/rateLimiter";
 
 export async function POST(request: Request) {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     const prompt = promptParts.join("\n");
 
     // --- 🚀 OpenAI 呼び出し ---
-    const resp = await callOpenAIWithTimeout(
+    const resp = await callOpenAIOnce(
       {
         model: "gpt-4o-mini",
         input: prompt,
