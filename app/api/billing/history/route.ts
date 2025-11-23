@@ -1,4 +1,6 @@
 // app/api/billing/history/route.ts
+export const runtime = "nodejs";
+
 export async function GET() {
   return Response.json({
     history: [
