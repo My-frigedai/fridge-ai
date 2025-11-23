@@ -1,4 +1,6 @@
 // app/api/auth/password/reset/request/route.ts
+export const runtime = "nodejs";
+
 import prisma from "@/lib/prisma";
 import nodemailer from "nodemailer";
 import { randomBytes, createHash } from "crypto";
