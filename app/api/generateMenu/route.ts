@@ -1,11 +1,11 @@
 // app/api/generateMenu/route.ts
 import { getToken } from "next-auth/jwt";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { callOpenAIOnce, extractTextFromResponse } from "@/lib/openai";
 import { rateLimit } from "@/lib/rateLimiter";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // --- 🔒 認証チェック ---
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       request.headers.get("x-forwarded-for") ||
       request.headers.get("host") ||
       "unknown";
+
     const rl = rateLimit(`generate:${ip}`, 60, 60);
     if (!rl.ok) {
       return NextResponse.json(
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "食材が必要です。" }, { status: 400 });
     }
 
-    // --- 🕓 usageHistory 保存（非同期で失敗許容） ---
+    // --- 🕓 usageHistory 保存（非同期） ---
     prisma.usageHistory
       .create({
         data: { userId, action: "generate", meta: { at: new Date().toISOString() } },
@@ -55,14 +56,14 @@ export async function POST(request: Request) {
       promptParts.push(`希望の構成: ${prefs.meal_parts.join(", ")}`);
     }
 
-    // --- 📋 出力形式（重要） ---
+    // --- 📋 出力形式 ---
     promptParts.push(`
 以下の形式のJSON配列のみを出力してください。説明文は不要です。
 [
   {
     "title": "鶏の照り焼き",
     "time": "25分",
-    "difficulty": "中", // 「低」「中」「高」のいずれか
+    "difficulty": "中",
     "tips": "タレは焦げやすいので注意",
     "ingredients": ["鶏もも肉", "醤油", "みりん", "砂糖"],
     "steps": [
@@ -75,10 +76,10 @@ export async function POST(request: Request) {
 ]
 
 各献立は最大3件まで出力し、以下の条件を満たしてください：
-- 利用する食材をできるだけ有効に使う
-- 家庭で再現可能な範囲にする
-- バランスを考慮して主菜・副菜・汁物などを組み合わせる
-- JSONフォーマットは厳守
+- 食材をできるだけ有効に使う
+- 家庭で再現可能
+- 主菜・副菜・汁物などをバランスよく構成
+- JSONフォーマット厳守
 `);
 
     const prompt = promptParts.join("\n");
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
       25000
     );
 
-    // --- 🧩 結果の抽出 ---
+    // --- 🧩 JSON抽出 ---
     const raw = extractTextFromResponse(resp);
     let menus: any[] = [];
 
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
       menus = [];
     }
 
-    // --- 🔧 バリデーション & フォールバック処理 ---
+    // --- 🔧 バリデーション ---
     menus = menus.map((m) => ({
       title: m.title ?? "不明な料理",
       time: m.time ?? "約30分",
@@ -120,13 +121,11 @@ export async function POST(request: Request) {
         : "中",
       tips: m.tips ?? "特に注意点はありません。",
       ingredients: Array.isArray(m.ingredients) ? m.ingredients : [],
-      steps: Array.isArray(m.steps)
-        ? m.steps
-        : ["手順情報が見つかりません。"],
+      steps: Array.isArray(m.steps) ? m.steps : ["手順情報が見つかりません。"],
       cautions: Array.isArray(m.cautions) ? m.cautions : [],
     }));
 
-    // --- 🧾 DB保存（失敗しても続行） ---
+    // --- 🧾 DB 保存（失敗しても継続） ---
     prisma.generatedMenu
       ?.create({
         data: {
@@ -137,7 +136,7 @@ export async function POST(request: Request) {
       })
       .catch((err) => console.warn("generatedMenu 保存に失敗:", err));
 
-    // --- ✅ レスポンス返却 ---
+    // --- 🎉 完了 ---
     return NextResponse.json({ menus });
   } catch (err: any) {
     console.error("generateMenu error:", err);
