@@ -67,10 +67,11 @@ export const authOptions = {
 
   // --- セッション永続化設定 ---
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const, // ← 型エラー回避用
     maxAge: 30 * 24 * 60 * 60, // 30日
     updateAge: 24 * 60 * 60,   // 1日ごとに更新
   },
+
   cookies: {
     sessionToken: {
       name: "next-auth.session-token",
