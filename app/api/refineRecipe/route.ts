@@ -1,19 +1,31 @@
 // app/api/refineRecipe/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { callOpenAIOnce, extractTextFromResponse } from "@/lib/openai";
 import { rateLimit } from "@/lib/rateLimiter";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("host") || "unknown";
-    const rl = rateLimit(`refine:${ip}`, 40, 60);
-    if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const ip =
+      req.headers.get("x-forwarded-for") ||
+      req.headers.get("host") ||
+      "unknown";
+
+    // ← await 忘れずに
+    const rl = await rateLimit(`refine:${ip}`, 40, 60);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429 }
+      );
+    }
 
     const body = await req.json();
     const title: string = String(body.title || "");
     const items: string[] = Array.isArray(body.items) ? body.items : [];
 
-    if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
+    if (!title) {
+      return NextResponse.json({ error: "title required" }, { status: 400 });
+    }
 
     const prompt = `
 献立: ${title}
@@ -28,11 +40,14 @@ export async function POST(req: Request) {
 各ステップは 50-120語程度で、実行時の温度・時間の目安を含めてください。
 `;
 
-    const resp = await callOpenAIOnce({
-      model: "gpt-4o-mini",
-      input: prompt,
-      max_output_tokens: 1200,
-    }, 30_000);
+    const resp = await callOpenAIOnce(
+      {
+        model: "gpt-4o-mini",
+        input: prompt,
+        max_output_tokens: 1200,
+      },
+      30_000
+    );
 
     const raw = extractTextFromResponse(resp);
     let detail: any = null;
@@ -52,6 +67,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail });
   } catch (err: any) {
     console.error("refineRecipe error:", err);
-    return NextResponse.json({ error: err?.message ?? "server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message ?? "server error" },
+      { status: 500 }
+    );
   }
 }
