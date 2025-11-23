@@ -17,7 +17,7 @@ export default [
     plugins: {
       "@next/next": nextPlugin,
       "@typescript-eslint": tseslint,
-      "jsx-a11y": jsxA11y,
+      "jsx-a11y": require("eslint-plugin-jsx-a11y"),
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
