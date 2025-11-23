@@ -20,9 +20,7 @@ export async function POST(request: NextRequest) {
       request.headers.get("host") ||
       "unknown";
 
-    // 🔥 await が絶対必要
     const rl = await rateLimit(`generate:${ip}`, 60, 60);
-
     if (!rl.ok) {
       return NextResponse.json(
         { error: "リクエストが多すぎます。しばらくしてからお試しください。" },
@@ -30,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- 📦 リクエストデータの取得 ---
+    // --- 📦 リクエスト ---
     const body = await request.json().catch(() => ({}));
     const items = Array.isArray(body.items) ? body.items : [];
     const prefs = (body.preferences ?? {}) as any;
@@ -39,14 +37,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "食材が必要です。" }, { status: 400 });
     }
 
-    // --- 🕓 usageHistory 保存（非同期） ---
+    // --- 🕓 usageHistory 保存 ---
     prisma.usageHistory
       .create({
         data: { userId, action: "generate", meta: { at: new Date().toISOString() } },
       })
       .catch((err) => console.warn("usageHistory 保存に失敗:", err));
 
-    // --- 🧠 OpenAI プロンプト作成 ---
+    // --- 🧠 プロンプト ---
     const promptParts: string[] = [
       `あなたは一流の料理研究家です。以下の食材を使って家庭で作れる献立を考えてください。`,
       `持っている食材: ${items.join(", ")}`,
@@ -80,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = promptParts.join("\n");
 
-    // --- 🚀 OpenAI 呼び出し ---
+    // --- 🚀 OpenAI ---
     const resp = await callOpenAIOnce(
       {
         model: "gpt-4o-mini",
@@ -101,11 +99,9 @@ export async function POST(request: NextRequest) {
         menus = JSON.parse(raw.slice(first, last + 1));
       } else {
         console.warn("generateMenu: JSON配列が見つかりません:", raw);
-        menus = [];
       }
     } catch (err) {
       console.warn("generateMenu: JSON parse error:", err, raw);
-      menus = [];
     }
 
     // --- 🔧 バリデーション ---
@@ -122,15 +118,22 @@ export async function POST(request: NextRequest) {
     }));
 
     // --- 🧾 DB 保存（失敗しても継続） ---
-    prisma.generatedMenu
-      .create({
-        data: {
-          userId,
-          content: menus,
-          createdAt: new Date(),
-        },
-      })
-      .catch((err) => console.warn("generatedMenu 保存に失敗:", err));
+    // ❌ prisma.generatedMenu（存在しない）
+    // ✅ prisma.menu （正しい model 名）
+    menus.forEach((m) => {
+      prisma.menu
+        .create({
+          data: {
+            userId,
+            title: m.title,
+            difficulty: m.difficulty,
+            time: m.time,
+            tips: m.tips,
+            ingredients: m.ingredients,
+          },
+        })
+        .catch((err) => console.warn("menu 保存に失敗:", err));
+    });
 
     // --- 🎉 完了 ---
     return NextResponse.json({ menus });
