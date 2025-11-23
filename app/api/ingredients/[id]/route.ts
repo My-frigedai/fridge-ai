@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import prisma from "@/lib/prisma";
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+import { NextRequest, NextResponse } from "next/server";
+
+export async function PUT(request: NextRequest, context: { params: { id: string } }) {
+  const { id } = context.params;
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
   const userId = token.sub as string;

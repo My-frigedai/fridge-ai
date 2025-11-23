@@ -1,17 +1,29 @@
-import next from "eslint-config-next";
+// eslint.config.mjs
+import nextPlugin from "@next/eslint-plugin-next";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
 
 export default [
   {
     ignores: ["**/dist/**", "**/.next/**"],
   },
-  ...next(),
   {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      ecmaVersion: "latest",
+      sourceType: "module",
+    },
+    plugins: {
+      "@next/next": nextPlugin,
+      "@typescript-eslint": tseslint,
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
-      "jsx-a11y/role-supports-aria-props": "warn",
       "@next/next/no-html-link-for-pages": "warn",
-      "react-hooks/exhaustive-deps": "warn"
+      "jsx-a11y/role-supports-aria-props": "warn",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
 ];
