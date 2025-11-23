@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
       request.headers.get("host") ||
       "unknown";
 
-    const rl = rateLimit(`generate:${ip}`, 60, 60);
+    // 🔥 await が絶対必要
+    const rl = await rateLimit(`generate:${ip}`, 60, 60);
+
     if (!rl.ok) {
       return NextResponse.json(
         { error: "リクエストが多すぎます。しばらくしてからお試しください。" },
@@ -56,7 +58,6 @@ export async function POST(request: NextRequest) {
       promptParts.push(`希望の構成: ${prefs.meal_parts.join(", ")}`);
     }
 
-    // --- 📋 出力形式 ---
     promptParts.push(`
 以下の形式のJSON配列のみを出力してください。説明文は不要です。
 [
@@ -74,12 +75,7 @@ export async function POST(request: NextRequest) {
     "cautions": ["強火で焼きすぎない", "タレを焦がさない"]
   }
 ]
-
-各献立は最大3件まで出力し、以下の条件を満たしてください：
-- 食材をできるだけ有効に使う
-- 家庭で再現可能
-- 主菜・副菜・汁物などをバランスよく構成
-- JSONフォーマット厳守
+各献立は最大3件まで。
 `);
 
     const prompt = promptParts.join("\n");
@@ -127,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // --- 🧾 DB 保存（失敗しても継続） ---
     prisma.generatedMenu
-      ?.create({
+      .create({
         data: {
           userId,
           content: menus,
@@ -140,7 +136,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ menus });
   } catch (err: any) {
     console.error("generateMenu error:", err);
-    const friendly = err?.friendly ?? "献立の生成中にエラーが発生しました。";
-    return NextResponse.json({ error: friendly }, { status: 500 });
+    return NextResponse.json(
+      { error: "献立の生成中にエラーが発生しました。" },
+      { status: 500 }
+    );
   }
 }
