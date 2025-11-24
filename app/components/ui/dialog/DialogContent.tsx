@@ -1,3 +1,4 @@
+//app/components/ui/dialog/DialogContent.tsx
 import { ReactNode } from "react";
 
 export function DialogContent({ children, className = "" }: { children: ReactNode; className?: string }) {

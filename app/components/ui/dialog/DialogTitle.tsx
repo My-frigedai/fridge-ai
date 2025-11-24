@@ -1,5 +1,17 @@
-import { ReactNode } from "react";
+//app/components/ui/dialog/DialogTitle.tsx
+import { ReactNode, HTMLAttributes } from "react";
 
-export function DialogTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-xl font-bold">{children}</h2>;
+type DialogTitleProps = HTMLAttributes<HTMLHeadingElement> & {
+  children: ReactNode;
+};
+
+export function DialogTitle({ children, className = "", ...props }: DialogTitleProps) {
+  return (
+    <h2
+      className={`text-xl font-bold ${className}`}
+      {...props}
+    >
+      {children}
+    </h2>
+  );
 }

@@ -1,3 +1,4 @@
+//app/components/ui/dialog/DialogFooter.tsx
 import { ReactNode } from "react";
 
 export function DialogFooter({ children }: { children: ReactNode }) {
