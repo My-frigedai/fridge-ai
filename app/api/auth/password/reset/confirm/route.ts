@@ -1,4 +1,6 @@
 // app/api/auth/password/reset/confirm/route.ts
+export const runtime = "nodejs";
+
 import prisma from "@/lib/prisma";
 import { createHash } from "crypto";
 import { hash } from "bcryptjs";

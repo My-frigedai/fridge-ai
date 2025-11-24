@@ -345,13 +345,34 @@ export default function RecipeWizard() {
       setToast?.("不足している食材はありません");
       return;
     }
-    setShopping?.((prev) => {
-      const next = [...((prev as any[]) ?? [])];
-      missing.forEach((m) => {
-        if (!next.find((x:any)=> normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
-      });
-      return next;
-    });
+
+    // --- FIX: avoid TypeScript treating setShopping as array; cast to function safely ---
+    if (setShopping) {
+      const setter = setShopping as unknown as ((updater: (prev?: any[]) => any[]) => void);
+      if (typeof setter === "function") {
+        setter((prev?: any[]) => {
+          const prevArr = Array.isArray(prev) ? prev : [];
+          const next = [...prevArr];
+          missing.forEach((m) => {
+            if (!next.find((x: any) => normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
+          });
+          return next;
+        });
+      } else {
+        // worst-case fallback: try to mutate if it's an array (shouldn't happen), but keep safe
+        try {
+          if (Array.isArray((setShopping as unknown))) {
+            const currentArr = (setShopping as unknown) as any[];
+            missing.forEach((m) => {
+              if (!currentArr.find((x: any) => normalizeName(x.name) === normalizeName(m))) currentArr.push({ name: m, done: false });
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
     setToast?.(`${missing.length} 個の食材を買い物リストに追加しました`);
   };
 

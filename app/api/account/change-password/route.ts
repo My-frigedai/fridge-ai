@@ -1,4 +1,5 @@
 // app/api/account/change-password/route.ts
+export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
