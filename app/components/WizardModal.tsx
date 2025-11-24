@@ -256,7 +256,8 @@ export default function WizardModal({
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex justify-between items-center">
+      <div className="mt-4 flex justify-between items-center">
+        <DialogFooter>
           <div>
             <Button
               onClick={generateMenus}
@@ -264,16 +265,24 @@ export default function WizardModal({
               aria-disabled={loading}
               aria-label="この食材で献立を作る"
             >
-              {loading ? (mode === "omakase" ? "おまかせ中…" : "生成中…") : (mode === "omakase" ? "おまかせで生成" : "この食材で献立を作る")}
+              {loading
+                ? mode === "omakase"
+                  ? "おまかせ中…"
+                  : "生成中…"
+               : mode === "omakase"
+                  ? "おまかせで生成"
+                  : "この食材で献立を作る"}
             </Button>
           </div>
 
           <div>
             <Button variant="outline" onClick={() => onClose()}>
-              閉じる
-            </Button>
-          </div>
-        </DialogFooter>
+             閉じる
+           </Button>
+         </div>
+       </DialogFooter>
+      </div>
+
       </DialogContent>
     </Dialog>
   );
