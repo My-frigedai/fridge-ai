@@ -1,6 +1,6 @@
 // app/components/BarcodeScanner.tsx
 "use client";
-// 🔹 components/BarcodeScanner.tsx
+
 import React, { useRef, useEffect, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { useFridge } from "./FridgeProvider";
@@ -15,10 +15,14 @@ export default function BarcodeScanner({
   onClose?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+
+  // reset() が型定義に無い問題 → 型拡張で安全に扱う
+  const codeReaderRef = useRef<(BrowserMultiFormatReader & { reset?: () => void }) | null>(null);
+
   const [supported, setSupported] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { addOrUpdateItem, setToast, setBarcodeOpen } = useFridge();
+
+  const { setBarcodeOpen } = useFridge();
 
   useEffect(() => {
     if (!visible) return;
@@ -27,18 +31,25 @@ export default function BarcodeScanner({
 
     const init = async () => {
       try {
-        codeReaderRef.current = new BrowserMultiFormatReader();
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-        if (devices.length === 0) throw new Error("カメラが見つかりません");
+        const reader = new BrowserMultiFormatReader();
+        codeReaderRef.current = reader;
 
-        const selectedDeviceId = devices[0].deviceId;
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        if (!devices || devices.length === 0) {
+          throw new Error("カメラが見つかりません");
+        }
+
         setSupported(true);
 
-        await codeReaderRef.current.decodeFromVideoDevice(
+        const selectedDeviceId = devices[0].deviceId;
+
+        await reader.decodeFromVideoDevice(
           selectedDeviceId,
           videoRef.current!,
           async (result, err) => {
-            if (result && active) {
+            if (!active) return;
+
+            if (result) {
               const code = result.getText();
               console.log("バーコード検出:", code);
 
@@ -48,6 +59,7 @@ export default function BarcodeScanner({
               setBarcodeOpen(false);
               onClose?.();
             }
+
             if (err && err.name !== "NotFoundException") {
               console.warn("バーコード読み取りエラー:", err);
             }
@@ -55,7 +67,7 @@ export default function BarcodeScanner({
         );
       } catch (e: any) {
         console.error("バーコードスキャナ初期化失敗:", e);
-        setError(e.message || "カメラ初期化に失敗しました");
+        setError(e?.message ?? "カメラ初期化に失敗しました");
         setSupported(false);
       }
     };
@@ -66,10 +78,12 @@ export default function BarcodeScanner({
       active = false;
       stopScanner();
     };
-  }, [visible, onDetected, onClose, addOrUpdateItem, setToast, setBarcodeOpen]);
+  }, [visible, onDetected, onClose, setBarcodeOpen]);
 
+  // reset() は型定義に存在しないためカスタム型で処理
   const stopScanner = () => {
-    codeReaderRef.current?.reset?.();
+    const reader = codeReaderRef.current;
+    reader?.reset?.();
     codeReaderRef.current = null;
   };
 
@@ -80,6 +94,7 @@ export default function BarcodeScanner({
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md rounded-2xl overflow-hidden bg-black p-6 text-white">
         {supported === null && <p>カメラを初期化しています…</p>}
+
         {supported === false && (
           <div>
             <p>{error ?? "このブラウザではバーコードが読み取れません"}</p>
@@ -91,6 +106,7 @@ export default function BarcodeScanner({
             </button>
           </div>
         )}
+
         {supported === true && (
           <video
             ref={videoRef}
