@@ -1,8 +1,9 @@
 // app/login/page.tsx
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "@/app/components/ThemeProvider";
@@ -12,7 +13,7 @@ import { fadeInUp, springTransition, buttonTap } from "@/app/components/motion";
 export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const registered = search.get("registered");
+  const registered = search?.get("registered");
   const [step, setStep] = useState<"select" | "email" | "otp">("select");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,18 +36,18 @@ export default function LoginPage() {
     try {
       const res = await signIn("google", { callbackUrl: "/", redirect: false });
       if (!(res as any)?.ok) {
-        setMsg("メールアドレスまたはパスワードが一致しません");
+        setMsg("ログインに失敗しました。");
       }
     } catch (err) {
       console.error(err);
-      setMsg("メールアドレスまたはパスワードが一致しません");
+      setMsg("ログインに失敗しました。");
     } finally {
       setLoading(false);
     }
   };
 
   const handleApple = async () => {
-    setMsg("メールアドレスまたはパスワードが一致しません");
+    setMsg("現在準備中です。");
   };
 
   // メール+パスワードを送って OTP を生成・送信させる
@@ -54,7 +55,8 @@ export default function LoginPage() {
     if (e) e.preventDefault();
     setMsg(null);
 
-    if (!email) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       setMsg("メールアドレスを入力してください");
       return;
     }
@@ -68,10 +70,10 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, mode: "login", password }),
+        body: JSON.stringify({ email: trimmedEmail, mode: "login", password }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data?.message || "サーバーエラーが発生しました。");
         return;
@@ -103,20 +105,19 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, mode: "login", code: otp }),
+        body: JSON.stringify({ email: email.trim(), mode: "login", code: otp }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data?.message || "確認に失敗しました。");
         return;
       }
 
       // OTP 検証成功 → 実際に credentials で signIn（password はクライアントに保持している）
-      const signInRes = await signIn("credentials", { redirect: false, email, password });
+      const signInRes = await signIn("credentials", { redirect: false, email: email.trim(), password });
       if ((signInRes as any)?.ok) {
         router.push("/");
       } else {
-        // 認証に失敗したら汎用エラーに統一
         setMsg("メールアドレスまたはパスワードが一致しません");
       }
     } catch (err) {
@@ -134,9 +135,9 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, mode: "login", password }),
+        body: JSON.stringify({ email: email.trim(), mode: "login", password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data?.message || "再送信に失敗しました。");
         return;
@@ -187,6 +188,7 @@ export default function LoginPage() {
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
+                aria-busy={loading}
               >
                 メールアドレスでログイン
               </motion.button>
@@ -197,9 +199,10 @@ export default function LoginPage() {
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
+                aria-busy={loading}
               >
                 {/* Google SVG（4色） */}
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 533.5 544.3" width="18" height="18" aria-hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 533.5 544.3" width="18" height="18" aria-hidden="true" focusable="false">
                   <path fill="#4285F4" d="M533.5 278.4c0-17.4-1.6-34.1-4.7-50.4H272v95.4h146.9c-6.4 34.6-25.4 63.9-54.2 83.5v68h87.3c51.1-47.1 81-116.4 81-196.5z"/>
                   <path fill="#34A853" d="M272 544.3c73.2 0 134.6-24.3 179.4-65.7l-87.3-68c-24.2 16.2-55.1 26-92.1 26-70.8 0-130.7-47.7-152.2-111.9H27.9v70.9C72.6 486.4 165.5 544.3 272 544.3z"/>
                   <path fill="#FBBC05" d="M119.8 324.7c-10.6-31.6-10.6-65.7 0-97.3v-70.9H27.9c-39.3 77.8-39.3 168.5 0 246.3l90-78.1z"/>
@@ -216,7 +219,7 @@ export default function LoginPage() {
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="18" height="18" fill="currentColor" aria-hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false">
                   <path d="M318.7 268.7c-.2-37.3 16.4-65.7 50-86.2-18.8-27.6-47.2-42.7-86.2-45.5-36.3-2.7-76.2 21.3-90.3 21.3-15 0-50-20.4-77.6-19.8-56.8.8-116.5 46.4-116.5 139.3 0 27.5 5 56.1 15 85.8 13.4 38.7 61.9 133.6 112.3 132 23.9-.5 40.8-16.9 76.3-16.9 34.6 0 50.3 16.9 77.6 16.3 50.8-1 94.7-85.3 107.9-124.2-68.4-32.3-68.5-95-68.5-101.8zM257.5 85.4C282 58.6 293.4 24.1 289 0c-26.6 1.1-57.9 18-76.6 39.2-16.8 19.3-31.6 46.9-27.6 74.4 29.1 2.2 58.9-14.8 72.7-28.2z"/>
                 </svg>
                 Appleでログイン（近日実装予定）
@@ -224,15 +227,15 @@ export default function LoginPage() {
 
               <p className="text-xs text-center text-secondary mt-2">
                 続行すると、
-                <a href="/terms" className="underline ml-1 text-primary">利用規約</a>
+                <Link href="/terms" className="underline ml-1 text-primary">利用規約</Link>
                 と
-                <a href="/privacy" className="underline ml-1 text-primary">プライバシーポリシー</a>
+                <Link href="/privacy" className="underline ml-1 text-primary">プライバシーポリシー</Link>
                 に同意したことになります。
               </p>
 
               <p className="text-xs text-center text-muted mt-2">
                 アカウントをお持ちでない方は
-                <a href="/register" className="underline ml-1 text-primary">こちらから登録</a>
+                <Link href="/register" className="underline ml-1 text-primary">こちらから登録</Link>
               </p>
             </div>
           ) : step === "email" ? (
@@ -254,7 +257,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
 
-              {msg && <div className="text-sm text-red-600">{msg}</div>}
+              {msg && <div className="text-sm text-red-600" role="alert">{msg}</div>}
 
               <motion.button
                 type="submit"
@@ -263,12 +266,13 @@ export default function LoginPage() {
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
+                aria-busy={loading}
               >
                 {loading ? "確認中…" : "認証コードを送信する"}
               </motion.button>
 
               <div className="flex items-center justify-between mt-2">
-                <a href="/reset-password/request" className="text-sm underline">パスワードをお忘れですか？</a>
+                <Link href="/reset-password/request" className="text-sm underline">パスワードをお忘れですか？</Link>
                 <button type="button" className="text-sm underline" onClick={() => setStep("select")}>← 戻る</button>
               </div>
             </form>
@@ -284,9 +288,10 @@ export default function LoginPage() {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 inputMode="numeric"
                 maxLength={6}
+                aria-label="確認コード"
               />
 
-              {msg && <div className="text-sm text-red-600">{msg}</div>}
+              {msg && <div className="text-sm text-red-600" role="alert">{msg}</div>}
 
               <motion.button
                 type="submit"
@@ -295,6 +300,7 @@ export default function LoginPage() {
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
+                aria-busy={loading}
               >
                 {loading ? "検証中…" : "コードを確認してログイン"}
               </motion.button>
