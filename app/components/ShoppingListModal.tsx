@@ -1,3 +1,4 @@
+//app/components/shoppinhListModal.tsx
 "use client";
 
 import { useState } from "react";
@@ -36,11 +37,15 @@ export default function ShoppingListModal({ open, onClose, shoppingList, removeI
           )}
         </div>
 
-        <DialogFooter className="mt-4">
-          <Button onClick={onClose} variant="outline">
-            閉じる
-          </Button>
-        </DialogFooter>
+        {/* ← ここだけ修正 */}
+        <div className="mt-4">
+          <DialogFooter>
+            <Button onClick={onClose} variant="outline">
+              閉じる
+            </Button>
+          </DialogFooter>
+        </div>
+
       </DialogContent>
     </Dialog>
   );
