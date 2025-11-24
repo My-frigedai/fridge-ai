@@ -225,7 +225,6 @@ export default function RecipeWizard() {
         fridgeItems: (items ?? []).map((i) => i.name),
         itemsToUse: Array.isArray(menu.usedItems) && menu.usedItems.length ? menu.usedItems : [],
         allowAny: false,
-        // highQuality: false (default)
       };
 
       const res = await fetchWithRetry("/api/getRecipeDetail", {
@@ -326,13 +325,30 @@ export default function RecipeWizard() {
     }
   };
 
+  // --- safe setter helper for shopping list updates ---
+  const safeSetShopping = (updater: (prev: any[]) => any[]) => {
+    if (typeof setShopping === "function") {
+      // Cast to React state setter so ts understands this is a setter
+      (setShopping as React.Dispatch<React.SetStateAction<any[]>>)((prev) => {
+        const prevArr = Array.isArray(prev) ? prev : [];
+        // clone to avoid mutating prev
+        const next = [...prevArr];
+        // allow the updater to mutate/return next
+        const result = updater(next);
+        // If updater returned an array explicitly, use it; otherwise assume it mutated 'next' and return next
+        return Array.isArray(result) ? result : next;
+      });
+    } else {
+      console.warn("setShopping is not available or not a function");
+    }
+  };
+
   const addMissingToShopping = (recipe: any) => {
     if (!recipe) return;
     const have = (items ?? []).map((i) => normalizeName(i.name));
     const candidates = Array.isArray(recipe.grocery_additions) && recipe.grocery_additions.length
       ? recipe.grocery_additions
-      : // also accept missingIngredients
-      (Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length ? recipe.missingIngredients : []);
+      : (Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length ? recipe.missingIngredients : []);
     // fallback: find ingredients marked missing
     let missing = candidates.length
       ? candidates
@@ -346,32 +362,13 @@ export default function RecipeWizard() {
       return;
     }
 
-    // --- FIX: avoid TypeScript treating setShopping as array; cast to function safely ---
-    if (setShopping) {
-      const setter = setShopping as unknown as ((updater: (prev?: any[]) => any[]) => void);
-      if (typeof setter === "function") {
-        setter((prev?: any[]) => {
-          const prevArr = Array.isArray(prev) ? prev : [];
-          const next = [...prevArr];
-          missing.forEach((m) => {
-            if (!next.find((x: any) => normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
-          });
-          return next;
-        });
-      } else {
-        // worst-case fallback: try to mutate if it's an array (shouldn't happen), but keep safe
-        try {
-          if (Array.isArray((setShopping as unknown))) {
-            const currentArr = (setShopping as unknown) as any[];
-            missing.forEach((m) => {
-              if (!currentArr.find((x: any) => normalizeName(x.name) === normalizeName(m))) currentArr.push({ name: m, done: false });
-            });
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
+    // Use safeSetShopping to avoid type errors at build-time
+    safeSetShopping((next) => {
+      missing.forEach((m) => {
+        if (!next.find((x:any)=> normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
+      });
+      return next;
+    });
 
     setToast?.(`${missing.length} 個の食材を買い物リストに追加しました`);
   };
