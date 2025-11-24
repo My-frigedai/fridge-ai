@@ -249,7 +249,7 @@ export default function RecipeWizard() {
       // ingredients normalization and presence detection
       const haveList = (items ?? []).map((i) => normalizeName(i.name));
       // try read explicit grocery_additions / missingIngredients
-      const explicitMissing = Array.isArray(recipe.grocery_additions) && recipe.grocery_additions.length
+      const explicitMissing: string[] = Array.isArray(recipe.grocery_additions) && recipe.grocery_additions.length
         ? recipe.grocery_additions.map(normalizeName)
         : Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length
         ? recipe.missingIngredients.map(normalizeName)
@@ -261,7 +261,7 @@ export default function RecipeWizard() {
             if (typeof it === "string") {
               const name = it;
               const norm = normalizeName(name);
-              const present = haveList.some(h => norm.includes(h) || h.includes(norm));
+              const present = haveList.some((h) => norm.includes(h) || h.includes(norm));
               const missing = explicitMissing.length ? explicitMissing.includes(norm) : !present;
               return { name, amount: "", present: present && !missing, missing };
             }
@@ -270,20 +270,20 @@ export default function RecipeWizard() {
             const unit = it.unit ?? it.unit_of ?? "";
             const amount = qps ? `${qps}${unit}` : (it.total_quantity ? `${it.total_quantity}${unit}` : "");
             const norm = normalizeName(name);
-            const present = haveList.some(h => norm.includes(h) || h.includes(norm));
+            const present = haveList.some((h) => norm.includes(h) || h.includes(norm));
             const missing = explicitMissing.length ? explicitMissing.includes(norm) : !present;
             return { name, amount, present: present && !missing, missing };
           })
         : [];
 
-      const steps = Array.isArray(recipe.steps) ? recipe.steps : [];
+      const steps: string[] = Array.isArray(recipe.steps) ? recipe.steps : [];
       // derive timers: prefer recipe.timers else extract from steps string (only for cooking verbs)
-      const timersFromResp = Array.isArray(recipe.timers) ? recipe.timers : [];
+      const timersFromResp: any[] = Array.isArray(recipe.timers) ? recipe.timers : [];
 
       const timersSeconds: Record<number, number> = {};
       for (let i = 0; i < steps.length; i++) {
         // if recipe.timers has step entries
-        const tObj = timersFromResp.find((t:any) => Number(t.step) === i);
+        const tObj = timersFromResp.find((t: any) => Number(t.step) === i);
         if (tObj && Number.isFinite(Number(tObj.seconds))) {
           timersSeconds[i] = Number(tObj.seconds);
           continue;
@@ -328,14 +328,10 @@ export default function RecipeWizard() {
   // --- safe setter helper for shopping list updates ---
   const safeSetShopping = (updater: (prev: any[]) => any[]) => {
     if (typeof setShopping === "function") {
-      // Cast to React state setter so ts understands this is a setter
       (setShopping as React.Dispatch<React.SetStateAction<any[]>>)((prev) => {
         const prevArr = Array.isArray(prev) ? prev : [];
-        // clone to avoid mutating prev
         const next = [...prevArr];
-        // allow the updater to mutate/return next
         const result = updater(next);
-        // If updater returned an array explicitly, use it; otherwise assume it mutated 'next' and return next
         return Array.isArray(result) ? result : next;
       });
     } else {
@@ -346,16 +342,16 @@ export default function RecipeWizard() {
   const addMissingToShopping = (recipe: any) => {
     if (!recipe) return;
     const have = (items ?? []).map((i) => normalizeName(i.name));
-    const candidates = Array.isArray(recipe.grocery_additions) && recipe.grocery_additions.length
+    const candidatesRaw: any[] = Array.isArray(recipe.grocery_additions) && recipe.grocery_additions.length
       ? recipe.grocery_additions
       : (Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length ? recipe.missingIngredients : []);
     // fallback: find ingredients marked missing
-    let missing = candidates.length
-      ? candidates
-      : (Array.isArray(recipe.ingredients) ? recipe.ingredients.filter((it:any) => it.missing).map((it:any) => it.name) : []);
+    let missing: string[] = candidatesRaw.length
+      ? candidatesRaw.map((x) => String(x))
+      : (Array.isArray(recipe.ingredients) ? recipe.ingredients.filter((it: any) => it.missing).map((it: any) => String(it.name)) : []);
 
     // normalize and filter duplicates
-    missing = Array.from(new Set(missing.map((m:any) => String(m).trim()))).filter(m => m);
+    missing = Array.from(new Set(missing.map((m) => String(m).trim()))).filter(m => m);
 
     if (missing.length === 0) {
       setToast?.("不足している食材はありません");
@@ -364,8 +360,8 @@ export default function RecipeWizard() {
 
     // Use safeSetShopping to avoid type errors at build-time
     safeSetShopping((next) => {
-      missing.forEach((m) => {
-        if (!next.find((x:any)=> normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
+      missing.forEach((m: string) => {
+        if (!next.find((x: any) => normalizeName(x.name) === normalizeName(m))) next.push({ name: m, done: false });
       });
       return next;
     });
@@ -379,11 +375,11 @@ export default function RecipeWizard() {
     return null;
   };
 
-  const toggleStepOpen = (idx:number) => {
+  const toggleStepOpen = (idx: number) => {
     setOpenSteps(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
-  const toggleStepDone = (idx:number) => {
+  const toggleStepDone = (idx: number) => {
     setDoneSteps(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
@@ -407,7 +403,7 @@ export default function RecipeWizard() {
         <div className={`text-sm mb-3 wizard-subtitle ${metaClass}`}>作りたい料理タイプを選択し、人数を指定してください。</div>
 
         <div className="grid grid-cols-3 gap-2 mb-3">
-          {["主食","主菜","副菜","汁物","デザート"].map((t) => {
+          {["主食", "主菜", "副菜", "汁物", "デザート"].map((t: string) => {
             const selected = selectedTypes.includes(t);
             return (
               <motion.button
@@ -426,11 +422,11 @@ export default function RecipeWizard() {
         <div className="flex items-center gap-3">
           <div>
             <label className={`text-sm block wizard-label ${titleClass}`}>人数</label>
-            <input aria-label="人数" type="number" min={1} value={servings} onChange={(e)=>setServings(Number(e.target.value||1))} className="rounded-xl border px-3 py-2 w-24 wizard-input" />
+            <input aria-label="人数" type="number" min={1} value={servings} onChange={(e) => setServings(Number(e.target.value || 1))} className="rounded-xl border px-3 py-2 w-24 wizard-input" />
           </div>
           <div>
             <label className={`text-sm block wizard-label ${titleClass}`}>食欲</label>
-            <select aria-label="食欲" value={appetite} onChange={(e)=>setAppetite(e.target.value)} className="rounded-xl border px-3 py-2 wizard-input">
+            <select aria-label="食欲" value={appetite} onChange={(e) => setAppetite(e.target.value)} className="rounded-xl border px-3 py-2 wizard-input">
               <option>小食</option>
               <option>普通</option>
               <option>大食い</option>
@@ -441,7 +437,7 @@ export default function RecipeWizard() {
         <div className="mt-4 flex gap-2">
           <motion.button {...btnTap} onClick={() => setWizardOpen(true)} disabled={loading} className={`rounded-full px-4 py-2 text-white ${loading ? "bg-blue-400" : "bg-blue-600"}`} aria-label="献立を生成">献立を生成</motion.button>
 
-          <motion.button {...btnTap} onClick={() => { setMenus(null); setSelectedMenu(null); setRecipeDetail(null); try { localStorage.removeItem("fridgeapp:menus"); localStorage.removeItem("fridgeapp:selectedMenuIndex"); localStorage.removeItem("fridgeapp:recipeDetail"); } catch (e){} }} className="rounded-full px-4 py-2 bg-[var(--surface-bg)] border-[var(--surface-border)] text-[var(--color-text-primary)]">リセット</motion.button>
+          <motion.button {...btnTap} onClick={() => { setMenus(null); setSelectedMenu(null); setRecipeDetail(null); try { localStorage.removeItem("fridgeapp:menus"); localStorage.removeItem("fridgeapp:selectedMenuIndex"); localStorage.removeItem("fridgeapp:recipeDetail"); } catch (e) { } }} className="rounded-full px-4 py-2 bg-[var(--surface-bg)] border-[var(--surface-border)] text-[var(--color-text-primary)]">リセット</motion.button>
         </div>
       </motion.div>
 
@@ -450,7 +446,7 @@ export default function RecipeWizard() {
           <div className={`${metaClass}`}>献立候補はまだありません。ウィザードで生成してください。</div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {menus.map((m, i) => (
+            {menus.map((m: MenuCandidate, i: number) => (
               <motion.div key={i} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-4 rounded-xl shadow cursor-pointer bg-[var(--surface-bg)] border-[var(--surface-border)]" onClick={() => fetchDetail(m)} role="button" tabIndex={0}>
                 <div className="flex justify-between items-start">
                   <div>
@@ -481,7 +477,7 @@ export default function RecipeWizard() {
               <>
                 <div className={`font-semibold mt-2 ${titleClass}`}>材料</div>
                 <ul className="pl-5 mt-1 text-[var(--color-text-primary)]">
-                  {Array.isArray(recipeDetail.ingredients) && recipeDetail.ingredients.length > 0 ? recipeDetail.ingredients.map((it:any, idx:number)=>(
+                  {Array.isArray(recipeDetail.ingredients) && recipeDetail.ingredients.length > 0 ? recipeDetail.ingredients.map((it: any, idx: number) => (
                     <li key={idx} className="mb-2 flex items-start justify-between">
                       <div>
                         <span className="font-medium">{it.name}</span>
@@ -503,15 +499,15 @@ export default function RecipeWizard() {
 
                 <div className="mt-3 flex gap-2">
                   <motion.button {...btnTap} onClick={() => addMissingToShopping(recipeDetail)} className="rounded-full px-3 py-2 text-sm bg-yellow-500 text-white">不足を買い物リストへ追加</motion.button>
-                  <motion.button {...btnTap} onClick={() => { try { const list = (recipeDetail.ingredients ?? []).map((it:any)=> `${it.name} ${it.amount ?? ""}` ).join("\n"); navigator.clipboard?.writeText(list); setToast?.("材料一覧をコピーしました"); } catch { setToast?.("コピーに失敗しました"); } }} className="rounded-full px-3 py-2 text-sm bg-[var(--surface-bg)] border-[var(--surface-border)] text-[var(--color-text-primary)]">材料をコピー</motion.button>
+                  <motion.button {...btnTap} onClick={() => { try { const list = (recipeDetail.ingredients ?? []).map((it: any) => `${it.name} ${it.amount ?? ""}`).join("\n"); navigator.clipboard?.writeText(list); setToast?.("材料一覧をコピーしました"); } catch { setToast?.("コピーに失敗しました"); } }} className="rounded-full px-3 py-2 text-sm bg-[var(--surface-bg)] border-[var(--surface-border)] text-[var(--color-text-primary)]">材料をコピー</motion.button>
                 </div>
 
                 <div className={`font-semibold mt-3 ${titleClass}`}>手順</div>
 
                 <ol className="list-decimal pl-5 mt-1 text-[var(--color-text-primary)]">
-                  {Array.isArray(recipeDetail.steps) && recipeDetail.steps.length > 0 ? recipeDetail.steps.map((s:string, i:number) => {
+                  {Array.isArray(recipeDetail.steps) && recipeDetail.steps.length > 0 ? recipeDetail.steps.map((s: string, i: number) => {
                     // prefer explicit timer seconds from recipeDetail.timers array if available
-                    const timerObj = Array.isArray(recipeDetail.timers) ? recipeDetail.timers.find((t:any)=> Number(t.step) === i) : null;
+                    const timerObj = Array.isArray(recipeDetail.timers) ? recipeDetail.timers.find((t: any) => Number(t.step) === i) : null;
                     const initialSeconds = timerObj?.seconds ?? normalizeStepDuration(s) ?? activeTimers[i] ?? null;
                     const needsTimerFlag = stepNeedsTimer(s, recipeDetail.timers) && initialSeconds;
                     const left = activeTimers[i] ?? (initialSeconds ?? 0);
@@ -525,7 +521,7 @@ export default function RecipeWizard() {
                               {openSteps[i] ? "▾" : "▸"}
                             </button>
                             <div className={`${doneSteps[i] ? "line-through text-[var(--color-text-muted)]" : ""}`}>
-                              {`Step ${i+1}: `}{s}
+                              {`Step ${i + 1}: `}{s}
                             </div>
                           </div>
 
@@ -557,10 +553,10 @@ export default function RecipeWizard() {
                         {openSteps[i] ? (
                           <div className="mt-2 text-sm text-[var(--color-text-muted)]">
                             {/* 展開したときに補足を表示（もしあれば） */}
-                            {recipeDetail.timers && Array.isArray(recipeDetail.timers) && recipeDetail.timers.find((t:any)=>t.step===i) ? (
-                              <div>推定時間: {Math.floor((recipeDetail.timers.find((t:any)=>t.step===i).seconds)/60)}分</div>
+                            {recipeDetail.timers && Array.isArray(recipeDetail.timers) && recipeDetail.timers.find((t: any) => t.step === i) ? (
+                              <div>推定時間: {Math.floor((recipeDetail.timers.find((t: any) => t.step === i).seconds) / 60)}分</div>
                             ) : initialSeconds ? (
-                              <div>推定時間: {Math.floor(initialSeconds/60)}分</div>
+                              <div>推定時間: {Math.floor(initialSeconds / 60)}分</div>
                             ) : (
                               <div>時間の目安は設定されていません</div>
                             )}
@@ -572,13 +568,13 @@ export default function RecipeWizard() {
                 </ol>
 
                 {recipeDetail.tips && <div className={`font-semibold mt-3 ${titleClass}`}>コツ</div>}
-                {Array.isArray(recipeDetail.tips) && recipeDetail.tips.length > 0 && recipeDetail.tips.map((t:string, i:number) => <div key={i} className={`${metaClass} mt-1`}>💡 {t}</div>)}
+                {Array.isArray(recipeDetail.tips) && recipeDetail.tips.length > 0 && recipeDetail.tips.map((t: string, i: number) => <div key={i} className={`${metaClass} mt-1`}>💡 {t}</div>)}
 
                 {recipeDetail.pitfalls && Array.isArray(recipeDetail.pitfalls) && recipeDetail.pitfalls.length > 0 && (
                   <>
                     <div className={`font-semibold mt-3 ${titleClass}`}>失敗しやすいポイント</div>
                     <ul className="pl-5 mt-1 text-[var(--color-text-primary)]">
-                      {recipeDetail.pitfalls.map((p:string, i:number) => <li key={i} className="mb-1 text-sm text-[var(--color-text-muted)]">⚠️ {p}</li>)}
+                      {recipeDetail.pitfalls.map((p: string, i: number) => <li key={i} className="mb-1 text-sm text-[var(--color-text-muted)]">⚠️ {p}</li>)}
                     </ul>
                   </>
                 )}
@@ -596,7 +592,7 @@ export default function RecipeWizard() {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onComplete={(menus) => { onWizardComplete(menus); setWizardOpen(false); }}
-        fridgeItems={(items ?? []).map((i:any) => i.name)}
+        fridgeItems={(items ?? []).map((i: any) => i.name)}
         selectedTypes={selectedTypes}
         servings={servings}
         appetite={appetite}
