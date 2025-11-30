@@ -2,6 +2,7 @@
 export const runtime = "nodejs";
 
 import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import EmailProvider from "next-auth/providers/email";
@@ -9,7 +10,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
