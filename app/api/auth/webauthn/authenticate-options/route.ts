@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { email: rawEmail } = body ?? {};
     if (!rawEmail) return NextResponse.json({ ok: false, message: "email required" }, { status: 400 });
-    const email = String(rawEmail).toLowerCase().trim();a
+    const email = String(rawEmail).toLowerCase().trim();
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return NextResponse.json({ ok: false, message: "no such user" }, { status: 404 });
