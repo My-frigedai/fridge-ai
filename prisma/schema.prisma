@@ -22,14 +22,15 @@ model User {
   sessions       Session[]
   usageHistories UsageHistory[]
   status         String?           @default("active")
-  verifyToken    String?           @unique
+  verifyToken    String?           @unique    // used as temp challenge storage
   verifyCode     String?
   verifyExpires  DateTime?
 
-  // 🔹 追加：認証関連のリレーション
-  otps              Otp[]
+  // auth related
   passwordResets    PasswordReset[]
   emailVerifications EmailVerification[]
+  trustedDevices     TrustedDevice[]
+  passkeys           Passkey[]
 }
 
 model Account {
@@ -109,17 +110,7 @@ model UsageHistory {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Otp {
-  id        String   @id @default(cuid())
-  userId    String
-  code      String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
+/* Otp model removed on purpose (email OTP flow is deprecated) */
 
 model PasswordReset {
   id        String   @id @default(cuid())
@@ -140,6 +131,33 @@ model EmailVerification {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TrustedDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  deviceInfo String?
+  createdAt DateTime @default(now())
+  lastUsed  DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tokenHash])
+}
+
+model Passkey {
+  id            String   @id @default(cuid())
+  userId        String
+  credentialId  String   @unique
+  publicKey     String
+  signCount     Int
+  transports    String?
+  name          String?
+  createdAt     DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
