@@ -8,11 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "fix:lint": "eslint . --fix || exit 0",
-    "fix:format": "prettier --write . || exit 0",
-    "check:types": "tsc --noEmit || exit 0",
-    "msg": "node -e \"const d=new Date();console.log(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`)\"",
-    "push": "npm run fix:lint && npm run fix:format && npm run check:types && git add -A && git commit -m \"update: $(npm run -s msg)\" && git push"
+
+    "push": "git add -A && git commit -m \"update\" && git push"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
@@ -53,7 +50,6 @@
     "@types/stripe": "^8.0.416",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
-    "prettier": "^3.7.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
