@@ -1,6 +1,10 @@
 // app/api/getRecipeDetail/route.ts
 import { NextResponse } from "next/server";
-import { callOpenAIOnce, extractTextFromResponse, extractJsonFromText } from "@/lib/openai";
+import {
+  callOpenAIOnce,
+  extractTextFromResponse,
+  extractJsonFromText,
+} from "@/lib/openai";
 
 /**
  * getRecipeDetail (single-call)
@@ -13,14 +17,21 @@ export async function POST(req: Request) {
   try {
     const bodyRaw = await req.json().catch(() => ({}));
     const title = typeof bodyRaw.title === "string" ? bodyRaw.title : "";
-    const fridgeItems = Array.isArray(bodyRaw.fridgeItems) ? bodyRaw.fridgeItems : [];
-    const itemsToUse = Array.isArray(bodyRaw.itemsToUse) ? bodyRaw.itemsToUse : [];
+    const fridgeItems = Array.isArray(bodyRaw.fridgeItems)
+      ? bodyRaw.fridgeItems
+      : [];
+    const itemsToUse = Array.isArray(bodyRaw.itemsToUse)
+      ? bodyRaw.itemsToUse
+      : [];
     const allowAny = !!bodyRaw.allowAny || bodyRaw.mode === "omakase";
     const servings = Math.max(1, Number(bodyRaw.servings ?? 1));
     const preferHighQuality = !!bodyRaw.highQuality; // UI can pass this to force gpt-4o
 
     if (!title) {
-      return NextResponse.json({ error: "タイトルが指定されていません。" }, { status: 400 });
+      return NextResponse.json(
+        { error: "タイトルが指定されていません。" },
+        { status: 400 },
+      );
     }
 
     const fridgeText = fridgeItems.length ? fridgeItems.join(", ") : "なし";
@@ -62,7 +73,7 @@ export async function POST(req: Request) {
           max_output_tokens: 1000,
           temperature: 0.12,
         },
-        15_000
+        15_000,
       );
 
       const raw = extractTextFromResponse(resp) ?? "";
@@ -86,30 +97,61 @@ export async function POST(req: Request) {
 
       if (!parsed) {
         // cannot parse model output -> deterministic fallback (one-shot)
-        const fallback = makeFallbackRecipe(title, servings, itemsToUse, fridgeItems);
+        const fallback = makeFallbackRecipe(
+          title,
+          servings,
+          itemsToUse,
+          fridgeItems,
+        );
         return NextResponse.json({ recipe: fallback, raw, fallback: true });
       }
 
       const recipe = normalizeParsedRecipe(parsed, title, servings, raw);
       return NextResponse.json({ recipe, raw, fallback: false });
     } catch (err: any) {
-      console.warn("getRecipeDetail: OpenAI call failed:", err?.status ?? err?.message ?? err);
+      console.warn(
+        "getRecipeDetail: OpenAI call failed:",
+        err?.status ?? err?.message ?? err,
+      );
       // immediate fallback — do not retry
-      const fallback = makeFallbackRecipe(title, servings, itemsToUse, fridgeItems);
+      const fallback = makeFallbackRecipe(
+        title,
+        servings,
+        itemsToUse,
+        fridgeItems,
+      );
       // If OpenAI gave explicit quota error, surface that for UI to show a polite message
       const details = err?.raw ?? err?.message ?? String(err);
-      return NextResponse.json({ recipe: fallback, fallback: true, details }, { status: 200 });
+      return NextResponse.json(
+        { recipe: fallback, fallback: true, details },
+        { status: 200 },
+      );
     }
   } catch (err: any) {
     console.error("getRecipeDetail fatal:", err);
-    return NextResponse.json({ error: "レシピ生成に失敗しました", details: err?.message ?? String(err) }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "レシピ生成に失敗しました",
+        details: err?.message ?? String(err),
+      },
+      { status: 500 },
+    );
   }
 }
 
 /** Helpers — keep deterministic and robust **/
 
-function makeFallbackRecipe(title: string, servings: number, mustUse: string[], fridgeItems: string[]) {
-  const main = mustUse.length ? mustUse.slice(0, 4) : fridgeItems.length ? fridgeItems.slice(0, 4) : ["卵", "野菜"];
+function makeFallbackRecipe(
+  title: string,
+  servings: number,
+  mustUse: string[],
+  fridgeItems: string[],
+) {
+  const main = mustUse.length
+    ? mustUse.slice(0, 4)
+    : fridgeItems.length
+      ? fridgeItems.slice(0, 4)
+      : ["卵", "野菜"];
   return {
     title: title || "簡易レシピ",
     description: "AIが利用できないため簡易レシピを生成しました。",
@@ -125,7 +167,11 @@ function makeFallbackRecipe(title: string, servings: number, mustUse: string[], 
       substitutes: [],
       notes: "",
     })),
-    steps: ["材料を揃える（約5分）", "炒める（約10分）", "味付けして完成（約10分）"],
+    steps: [
+      "材料を揃える（約5分）",
+      "炒める（約10分）",
+      "味付けして完成（約10分）",
+    ],
     timers: [{ step: 1, seconds: 600, label: "炒める" }],
     tips: ["まずは少量の塩で味をみて調整すること"],
     pitfalls: [],
@@ -151,7 +197,11 @@ function deriveTimersFromSteps(steps: any): any[] {
       const m = s.match(/約?(\d+)\s*分/);
       if (m) {
         const minutes = Number(m[1]);
-        timers.push({ step: i, seconds: minutes * 60, label: s.replace(/（.*?）/g, "").slice(0, 60) });
+        timers.push({
+          step: i,
+          seconds: minutes * 60,
+          label: s.replace(/（.*?）/g, "").slice(0, 60),
+        });
       }
     }
     return timers;
@@ -160,38 +210,71 @@ function deriveTimersFromSteps(steps: any): any[] {
   }
 }
 
-function normalizeParsedRecipe(parsed: any, fallbackTitle: string, fallbackServings: number, raw: string) {
+function normalizeParsedRecipe(
+  parsed: any,
+  fallbackTitle: string,
+  fallbackServings: number,
+  raw: string,
+) {
   const title = typeof parsed.title === "string" ? parsed.title : fallbackTitle;
   const servings = Number(parsed.servings ?? fallbackServings ?? 1);
   const time_minutes = Number(parsed.time_minutes ?? parsed.time ?? 30) || 30;
-  const difficulty = ["低", "中", "高"].includes(parsed.difficulty) ? parsed.difficulty : parsed.difficulty ?? "中";
+  const difficulty = ["低", "中", "高"].includes(parsed.difficulty)
+    ? parsed.difficulty
+    : (parsed.difficulty ?? "中");
 
   const ingredients = Array.isArray(parsed.ingredients)
     ? parsed.ingredients.map((ing: any) => {
         const name = String(ing?.name ?? ing ?? "").trim();
-        const qps = toNumberOrUndefined(ing?.quantity_per_serving ?? ing?.qps ?? ing?.quantityPerServing);
+        const qps = toNumberOrUndefined(
+          ing?.quantity_per_serving ?? ing?.qps ?? ing?.quantityPerServing,
+        );
         const unit = String(ing?.unit ?? "個");
-        const total = toNumberOrUndefined(ing?.total_quantity ?? ing?.totalQuantity ?? (qps !== undefined ? qps * servings : undefined));
+        const total = toNumberOrUndefined(
+          ing?.total_quantity ??
+            ing?.totalQuantity ??
+            (qps !== undefined ? qps * servings : undefined),
+        );
         return {
           name,
           quantity_per_serving: qps ?? 0,
           unit,
           total_quantity: total ?? (qps ? qps * servings : 0),
           optional: !!ing?.optional,
-          substitutes: Array.isArray(ing?.substitutes) ? ing.substitutes.map(String) : [],
+          substitutes: Array.isArray(ing?.substitutes)
+            ? ing.substitutes.map(String)
+            : [],
           notes: ing?.notes ?? "",
         };
       })
     : [];
 
   const steps = Array.isArray(parsed.steps) ? parsed.steps.map(String) : [];
-  const timers = Array.isArray(parsed.timers) ? parsed.timers : deriveTimersFromSteps(steps);
+  const timers = Array.isArray(parsed.timers)
+    ? parsed.timers
+    : deriveTimersFromSteps(steps);
 
-  const tips = Array.isArray(parsed.tips) ? parsed.tips : parsed.tips ? [String(parsed.tips)] : [];
-  const pitfalls = Array.isArray(parsed.pitfalls) ? parsed.pitfalls : parsed.pitfalls ? [String(parsed.pitfalls)] : [];
+  const tips = Array.isArray(parsed.tips)
+    ? parsed.tips
+    : parsed.tips
+      ? [String(parsed.tips)]
+      : [];
+  const pitfalls = Array.isArray(parsed.pitfalls)
+    ? parsed.pitfalls
+    : parsed.pitfalls
+      ? [String(parsed.pitfalls)]
+      : [];
   const storage = parsed.storage ?? "";
-  const allergy_warnings = Array.isArray(parsed.allergy_warnings) ? parsed.allergy_warnings : parsed.allergy_warnings ? [String(parsed.allergy_warnings)] : [];
-  const grocery_additions = Array.isArray(parsed.grocery_additions) ? parsed.grocery_additions : parsed.grocery_additions ? [String(parsed.grocery_additions)] : [];
+  const allergy_warnings = Array.isArray(parsed.allergy_warnings)
+    ? parsed.allergy_warnings
+    : parsed.allergy_warnings
+      ? [String(parsed.allergy_warnings)]
+      : [];
+  const grocery_additions = Array.isArray(parsed.grocery_additions)
+    ? parsed.grocery_additions
+    : parsed.grocery_additions
+      ? [String(parsed.grocery_additions)]
+      : [];
   const nutrition_estimate = parsed.nutrition_estimate ?? {};
 
   return {

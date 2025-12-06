@@ -12,9 +12,15 @@ function hashToken(t: string) {
 export async function POST(req: Request) {
   try {
     const { email } = await req.json();
-    if (!email) return new Response(JSON.stringify({ ok: false, message: "メールアドレスが必要です。" }), { status: 400 });
+    if (!email)
+      return new Response(
+        JSON.stringify({ ok: false, message: "メールアドレスが必要です。" }),
+        { status: 400 },
+      );
 
-    const user = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() } });
+    const user = await prisma.user.findUnique({
+      where: { email: String(email).toLowerCase().trim() },
+    });
     // セキュリティ上の理由で、存在しなくても成功を返す（存在確認を攻撃者に与えない）
     if (!user) return new Response(JSON.stringify({ ok: true }));
 
@@ -34,7 +40,10 @@ export async function POST(req: Request) {
       host: process.env.EMAIL_SERVER_HOST,
       port: Number(process.env.EMAIL_SERVER_PORT || 465),
       secure: Number(process.env.EMAIL_SERVER_PORT || 465) === 465,
-      auth: { user: process.env.EMAIL_SERVER_USER, pass: process.env.EMAIL_SERVER_PASSWORD },
+      auth: {
+        user: process.env.EMAIL_SERVER_USER,
+        pass: process.env.EMAIL_SERVER_PASSWORD,
+      },
     });
 
     const resetUrl = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "") || ""}/reset-password/verify?token=${rawToken}&email=${encodeURIComponent(user.email!)}`;
@@ -53,6 +62,9 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ ok: true }));
   } catch (err) {
     console.error("Password reset request error:", err);
-    return new Response(JSON.stringify({ ok: false, message: "サーバーエラー" }), { status: 500 });
+    return new Response(
+      JSON.stringify({ ok: false, message: "サーバーエラー" }),
+      { status: 500 },
+    );
   }
 }

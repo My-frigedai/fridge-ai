@@ -30,7 +30,8 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm("本当にアカウントを削除しますか？この操作は元に戻せません。")) return;
+    if (!confirm("本当にアカウントを削除しますか？この操作は元に戻せません。"))
+      return;
 
     try {
       const res = await fetch("/api/account/delete", {
@@ -51,13 +52,19 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6 pb-32"> {/* ✅ 下のNavBar分余白追加 */}
+    <div className="max-w-2xl mx-auto p-6 space-y-6 pb-32">
+      {" "}
+      {/* ✅ 下のNavBar分余白追加 */}
       {/* プロフィールカード */}
       <div className="card p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-bold text-lg">{session?.user?.name || "未設定"}</div>
-            <div className="text-muted">{session?.user?.email || "メール未設定"}</div>
+            <div className="font-bold text-lg">
+              {session?.user?.name || "未設定"}
+            </div>
+            <div className="text-muted">
+              {session?.user?.email || "メール未設定"}
+            </div>
           </div>
           <Button onClick={() => setIsEditing(!isEditing)}>
             {isEditing ? "キャンセル" : "編集"}
@@ -84,13 +91,14 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
-
       {/* テーマ設定 */}
       <div className="card p-4 space-y-3">
         <div className="font-semibold">画面テーマ</div>
         <select
           value={theme}
-          onChange={(e) => setTheme(e.target.value as "system" | "light" | "dark")}
+          onChange={(e) =>
+            setTheme(e.target.value as "system" | "light" | "dark")
+          }
           className="input"
         >
           <option value="system">OSに合わせる</option>
@@ -98,7 +106,6 @@ export default function SettingsPage() {
           <option value="dark">ダーク（濃い背景＋薄い枠）</option>
         </select>
       </div>
-
       {/* アカウント設定 */}
       <div className="card p-4 space-y-3">
         <div className="font-semibold">アカウント設定</div>
@@ -131,7 +138,6 @@ export default function SettingsPage() {
           ログアウト
         </Button>
       </div>
-
       {/* 課金履歴 */}
       <div className="card p-4">
         <div className="font-semibold mb-3">課金履歴</div>
@@ -147,7 +153,6 @@ export default function SettingsPage() {
           </ul>
         )}
       </div>
-
       {/* 危険ゾーン */}
       <div className="rounded-2xl border p-4 bg-red-50 dark:bg-red-900 shadow">
         <div className="font-semibold text-red-600 dark:text-red-300 mb-3">
@@ -160,7 +165,6 @@ export default function SettingsPage() {
           アカウントを削除
         </Button>
       </div>
-
       {/* ✅ 常時下部タブ表示 */}
       <NavBar />
     </div>

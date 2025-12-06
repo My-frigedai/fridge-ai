@@ -5,12 +5,14 @@ import bcrypt from "bcryptjs";
 
 const PASSWORD_POLICY = {
   minLen: 12,
-  regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?`~]).+$/,
+  regex:
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?`~]).+$/,
 };
 
 function validatePassword(pw: string) {
   if (typeof pw !== "string") return "パスワードの形式が不正です。";
-  if (pw.length < PASSWORD_POLICY.minLen) return `パスワードは${PASSWORD_POLICY.minLen}文字以上にしてください。`;
+  if (pw.length < PASSWORD_POLICY.minLen)
+    return `パスワードは${PASSWORD_POLICY.minLen}文字以上にしてください。`;
   if (!PASSWORD_POLICY.regex.test(pw))
     return "パスワードには大文字・小文字・数字・記号を含めてください。";
   return null;
@@ -24,7 +26,10 @@ export async function POST(req: Request) {
     const { email: rawEmail, password, name } = body ?? {};
 
     if (!rawEmail || !password) {
-      return NextResponse.json({ ok: false, message: "メールとパスワードは必須です" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "メールとパスワードは必須です" },
+        { status: 400 },
+      );
     }
 
     const email = String(rawEmail).toLowerCase().trim();
@@ -34,7 +39,10 @@ export async function POST(req: Request) {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json({ ok: false, message: "このメールアドレスは既に登録されています。" }, { status: 409 });
+      return NextResponse.json(
+        { ok: false, message: "このメールアドレスは既に登録されています。" },
+        { status: 409 },
+      );
     }
 
     const hashed = await bcrypt.hash(String(password), 12);
@@ -48,9 +56,15 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true, message: "登録が完了しました。ログインしてください。" });
+    return NextResponse.json({
+      ok: true,
+      message: "登録が完了しました。ログインしてください。",
+    });
   } catch (err: any) {
     console.error("register error:", err);
-    return NextResponse.json({ ok: false, message: "サーバーエラー" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: "サーバーエラー" },
+      { status: 500 },
+    );
   }
 }

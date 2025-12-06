@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     console.error("candidates error:", err);
     return NextResponse.json(
       { error: "候補食材取得に失敗しました" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

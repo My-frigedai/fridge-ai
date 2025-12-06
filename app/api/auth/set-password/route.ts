@@ -7,7 +7,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const { email, password, name } = body ?? {};
-    if (!email || !password) return NextResponse.json({ ok: false, message: "email and password required" }, { status: 400 });
+    if (!email || !password)
+      return NextResponse.json(
+        { ok: false, message: "email and password required" },
+        { status: 400 },
+      );
 
     const emailStr = String(email).toLowerCase().trim();
     const nameStr = name ? String(name) : undefined;
@@ -19,12 +23,20 @@ export async function POST(req: Request) {
     const user = await prisma.user.upsert({
       where: { email: emailStr },
       update: { password: hashed, name: nameStr, status: "active" },
-      create: { email: emailStr, password: hashed, name: nameStr, status: "active" },
+      create: {
+        email: emailStr,
+        password: hashed,
+        name: nameStr,
+        status: "active",
+      },
     });
 
     return NextResponse.json({ ok: true, message: "saved" });
   } catch (err: any) {
     console.error("[set-password] error:", err);
-    return NextResponse.json({ ok: false, message: "server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: "server error" },
+      { status: 500 },
+    );
   }
 }

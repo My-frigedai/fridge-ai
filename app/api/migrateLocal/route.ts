@@ -7,12 +7,18 @@ export async function POST(req: NextRequest) {
   try {
     if (!process.env.NEXTAUTH_SECRET) {
       console.error("NEXTAUTH_SECRET is undefined");
-      return NextResponse.json({ error: "サーバー設定エラー" }, { status: 500 });
+      return NextResponse.json(
+        { error: "サーバー設定エラー" },
+        { status: 500 },
+      );
     }
 
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
     if (!token?.sub) {
-      return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+      return NextResponse.json(
+        { error: "ログインが必要です" },
+        { status: 401 },
+      );
     }
 
     const userId = token.sub;
@@ -20,7 +26,10 @@ export async function POST(req: NextRequest) {
     const items = body.items;
 
     if (!Array.isArray(items)) {
-      return NextResponse.json({ error: "不正なデータ形式です" }, { status: 400 });
+      return NextResponse.json(
+        { error: "不正なデータ形式です" },
+        { status: 400 },
+      );
     }
 
     const created = [];
@@ -45,7 +54,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, createdCount: created.length, created });
+    return NextResponse.json({
+      ok: true,
+      createdCount: created.length,
+      created,
+    });
   } catch (err) {
     console.error("migrateLocal error:", err);
     return NextResponse.json({ error: "処理に失敗しました" }, { status: 500 });

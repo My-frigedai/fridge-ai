@@ -9,7 +9,12 @@ import BarcodeScanner from "@/app/components/BarcodeScanner";
 import Toast from "@/app/components/Toast";
 import AddEditModal from "@/app/components/AddEditModal";
 import { motion, AnimatePresence } from "framer-motion";
-import { fadeInUp, springTransition, buttonTap, tabSwitch } from "@/app/components/motion";
+import {
+  fadeInUp,
+  springTransition,
+  buttonTap,
+  tabSwitch,
+} from "@/app/components/motion";
 
 export default function HomePage() {
   const {
@@ -42,7 +47,7 @@ export default function HomePage() {
       setToast?.("バーコードから食材を追加しました");
       setBarcodeOpen(false);
     },
-    [addOrUpdateItem, setToast, setBarcodeOpen]
+    [addOrUpdateItem, setToast, setBarcodeOpen],
   );
 
   // 食材を認識ラベルから追加する共通処理
@@ -74,7 +79,9 @@ export default function HomePage() {
         <div />
         <div className="text-lg font-bold">My Fridge</div>
         <motion.button
-          onClick={() => window.dispatchEvent(new CustomEvent("fridge_open_add"))}
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("fridge_open_add"))
+          }
           className="rounded-full p-2 shadow-md barcode-btn"
           whileTap={buttonTap.whileTap}
           whileHover={buttonTap.whileHover}
@@ -86,9 +93,15 @@ export default function HomePage() {
 
       <main className="p-4 pb-28 space-y-4">
         {/* 検索バー */}
-        <motion.div className="mb-3 flex items-center gap-2 rounded-2xl border px-3 py-2 card" variants={fadeInUp}>
+        <motion.div
+          className="mb-3 flex items-center gap-2 rounded-2xl border px-3 py-2 card"
+          variants={fadeInUp}
+        >
           <span>🔍</span>
-          <input placeholder="食材を検索" className="w-full bg-transparent outline-none" />
+          <input
+            placeholder="食材を検索"
+            className="w-full bg-transparent outline-none"
+          />
         </motion.div>
 
         {/* 食材リスト */}
@@ -169,8 +182,16 @@ export default function HomePage() {
       {/* BarcodeScanner */}
       <AnimatePresence>
         {barcodeOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <BarcodeScanner visible={barcodeOpen} onDetected={handleDetected} onClose={() => setBarcodeOpen(false)} />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <BarcodeScanner
+              visible={barcodeOpen}
+              onDetected={handleDetected}
+              onClose={() => setBarcodeOpen(false)}
+            />
           </motion.div>
         )}
       </AnimatePresence>

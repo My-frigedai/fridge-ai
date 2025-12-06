@@ -27,7 +27,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const token = jwt.sign({ userId: user.id }, process.env.NEXTAUTH_SECRET!, { expiresIn: "1h" });
+    const token = jwt.sign({ userId: user.id }, process.env.NEXTAUTH_SECRET!, {
+      expiresIn: "1h",
+    });
     const resetUrl = `${NEXTAUTH_URL}/reset-password/${token}`;
 
     const transport = nodemailer.createTransport({

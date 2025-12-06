@@ -15,7 +15,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const rawItems: Item[] = Array.isArray(body.items) ? body.items : [];
-    const usedRaw: any[] = Array.isArray(body.usedIngredients) ? body.usedIngredients : [];
+    const usedRaw: any[] = Array.isArray(body.usedIngredients)
+      ? body.usedIngredients
+      : [];
 
     // Defensive copy
     const items = rawItems.map((it) => ({ ...it }));
@@ -27,24 +29,45 @@ export async function POST(req: Request) {
         if (typeof u === "string") {
           const q = parseQuantityText(u);
           // Remove trailing numeric/units to extract probable name
-          const name = String(u).replace(/[\d.,\/\s\-〜~]*(ml|l|g|kg|個|枚|本|カップ|cup|cups|tsp|tbsp)?\s*$/i, "").trim();
+          const name = String(u)
+            .replace(
+              /[\d.,\/\s\-〜~]*(ml|l|g|kg|個|枚|本|カップ|cup|cups|tsp|tbsp)?\s*$/i,
+              "",
+            )
+            .trim();
           return { name: name || q.raw || u, parsed: q, raw: u };
         } else if (typeof u === "object") {
           // Structured: {name, quantity, unit}
           if (u.quantity && u.unit) {
             const combined = `${u.name ?? ""} ${u.quantity}${u.unit}`;
             const q = parseQuantityText(combined);
-            return { name: u.name ?? u.label ?? combined, parsed: q, raw: combined };
+            return {
+              name: u.name ?? u.label ?? combined,
+              parsed: q,
+              raw: combined,
+            };
           }
           if (u.quantity && !u.unit) {
             // assume count
-            return { name: u.name ?? u.label ?? "", parsed: { amount: Number(u.quantity) || 0, unit: "count" }, raw: JSON.stringify(u) };
+            return {
+              name: u.name ?? u.label ?? "",
+              parsed: { amount: Number(u.quantity) || 0, unit: "count" },
+              raw: JSON.stringify(u),
+            };
           }
-          return { name: u.name || u.label || JSON.stringify(u), parsed: { amount: 1, unit: "count" }, raw: JSON.stringify(u) };
+          return {
+            name: u.name || u.label || JSON.stringify(u),
+            parsed: { amount: 1, unit: "count" },
+            raw: JSON.stringify(u),
+          };
         }
         return null;
       })
-      .filter(Boolean) as { name: string; parsed: { amount: number; unit: string; raw?: string }; raw: string }[];
+      .filter(Boolean) as {
+      name: string;
+      parsed: { amount: number; unit: string; raw?: string };
+      raw: string;
+    }[];
 
     // Helper: find best matching item index for a used ingredient name
     function findMatchIndex(useName: string) {
@@ -68,7 +91,8 @@ export async function POST(req: Request) {
       // 3) fallback: startsWith/includes
       for (let i = 0; i < items.length; i++) {
         const iname = normalizeName(items[i].name || "");
-        if (iname && (iname.startsWith(target) || target.startsWith(iname))) return i;
+        if (iname && (iname.startsWith(target) || target.startsWith(iname)))
+          return i;
       }
       return -1;
     }
@@ -91,16 +115,29 @@ export async function POST(req: Request) {
 
       if (usedUnit === "ml" && (itemUnit === "ml" || /l|ml/.test(itemUnit))) {
         newQty = Math.max(0, itemQty - usedAmount);
-      } else if (usedUnit === "g" && (itemUnit === "g" || /kg|g/.test(itemUnit))) {
+      } else if (
+        usedUnit === "g" &&
+        (itemUnit === "g" || /kg|g/.test(itemUnit))
+      ) {
         newQty = Math.max(0, itemQty - usedAmount);
-      } else if (usedUnit === "count" && (itemUnit === "" || /個|枚|本|count/.test(itemUnit))) {
+      } else if (
+        usedUnit === "count" &&
+        (itemUnit === "" || /個|枚|本|count/.test(itemUnit))
+      ) {
         newQty = Math.max(0, itemQty - usedAmount);
       } else {
         const iname = (targetItem.name || "").toLowerCase();
-        if (iname.includes("牛乳") || iname.includes("ミルク") || iname.includes("milk") || iname.includes("ジュース") || iname.includes("水")) {
+        if (
+          iname.includes("牛乳") ||
+          iname.includes("ミルク") ||
+          iname.includes("milk") ||
+          iname.includes("ジュース") ||
+          iname.includes("水")
+        ) {
           if (usedUnit === "ml") newQty = Math.max(0, itemQty - usedAmount);
           else if (usedUnit === "g") newQty = Math.max(0, itemQty - usedAmount);
-          else if (usedUnit === "count") newQty = Math.max(0, itemQty - usedAmount);
+          else if (usedUnit === "count")
+            newQty = Math.max(0, itemQty - usedAmount);
           else newQty = Math.max(0, itemQty - (usedAmount || 0));
         } else {
           // Fallback: subtract as count if unknown
@@ -114,6 +151,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ items });
   } catch (err: any) {
     console.error("completeMenu error:", err);
-    return NextResponse.json({ error: "在庫の更新中に問題が発生しました。" }, { status: 500 });
+    return NextResponse.json(
+      { error: "在庫の更新中に問題が発生しました。" },
+      { status: 500 },
+    );
   }
 }

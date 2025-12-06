@@ -13,10 +13,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!token) {
-      return NextResponse.json(
-        { error: "認証が必要です" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
     const userId = token.sub!;
@@ -30,7 +27,7 @@ export async function GET(req: NextRequest) {
     console.error("ingredients API error:", e);
     return NextResponse.json(
       { error: "食材リストの取得に失敗しました" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -44,10 +41,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!token) {
-      return NextResponse.json(
-        { error: "認証が必要です" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
     const userId = token.sub!;
@@ -69,7 +63,7 @@ export async function POST(req: NextRequest) {
     console.error("ingredient create error:", e);
     return NextResponse.json(
       { error: "食材の追加に失敗しました" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

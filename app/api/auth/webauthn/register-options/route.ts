@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     if (typeof email !== "string" || email.length === 0) {
       return NextResponse.json(
         { ok: false, message: "email missing" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json(
         { ok: false, message: "user not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -33,15 +33,14 @@ export async function POST(req: Request) {
     const userIDBinary = Buffer.from(user.id, "utf8");
 
     // 🟢 userName / userDisplayName は null を絶対混ぜない（TS対策）
-    const safeUserName =
-      typeof user.email === "string" ? user.email : "";
+    const safeUserName = typeof user.email === "string" ? user.email : "";
 
     const safeUserDisplayName =
       typeof user.name === "string"
         ? user.name
         : typeof user.email === "string"
-        ? user.email
-        : "User";
+          ? user.email
+          : "User";
 
     // 🟢 excludeCredentials は credentialId を string のまま渡す
     const excludeCredentials = existing.map((pk) => ({
@@ -73,15 +72,12 @@ export async function POST(req: Request) {
       data: { verifyToken: options.challenge },
     });
 
-    return NextResponse.json(
-      { ok: true, options },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, options }, { status: 200 });
   } catch (err: any) {
     console.error("[register-options] error:", err);
     return NextResponse.json(
       { ok: false, message: "server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

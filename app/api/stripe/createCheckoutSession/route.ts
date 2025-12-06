@@ -18,14 +18,14 @@ export async function POST(req: NextRequest) {
     if (!stripe) {
       return NextResponse.json(
         { error: "支払い機能が未設定です" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     if (!priceId) {
       return NextResponse.json(
         { error: "価格IDが設定されていません" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     console.error("Stripe error:", err);
     return NextResponse.json(
       { error: "支払いの準備に失敗しました。時間を置いて再試行してください。" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -27,7 +27,8 @@ export default function IngredientList() {
   useEffect(() => {
     const openAddHandler = () => setEditingItem(null);
     window.addEventListener("fridge_open_add", openAddHandler as any);
-    return () => window.removeEventListener("fridge_open_add", openAddHandler as any);
+    return () =>
+      window.removeEventListener("fridge_open_add", openAddHandler as any);
   }, []);
 
   const handleDelete = (id: string) => {
@@ -37,15 +38,17 @@ export default function IngredientList() {
   };
 
   const handleToggle = (id: string) => {
-    setExpandedId(prev => (prev === id ? null : id));
+    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   return (
     <div className="divide-y divide-gray-300 dark:divide-gray-700">
-      {(!items || items.length === 0) ? (
-        <div className="text-gray-400 p-4">まだ食材がありません。追加してください。</div>
+      {!items || items.length === 0 ? (
+        <div className="text-gray-400 p-4">
+          まだ食材がありません。追加してください。
+        </div>
       ) : (
-        items.map(it => (
+        items.map((it) => (
           <div key={it.id} className="relative ingredient-row">
             {/* 食材行 */}
             <div className="flex items-center justify-between px-3 py-3">
@@ -71,7 +74,8 @@ export default function IngredientList() {
                   className="text-sm ingredient-qty"
                   style={{ color: "var(--color-text-secondary)" }}
                 >
-                  {it.quantity}{it.unit}
+                  {it.quantity}
+                  {it.unit}
                 </div>
 
                 <button
@@ -95,18 +99,23 @@ export default function IngredientList() {
                   className="flex justify-end gap-3 px-3 pb-2 action-menu"
                 >
                   <button
-                    onClick={() => { setEditingItem(it); setExpandedId(null); }}
+                    onClick={() => {
+                      setEditingItem(it);
+                      setExpandedId(null);
+                    }}
                     className="flex items-center gap-1 px-3 py-1 rounded-full action-btn action-edit"
                     aria-label={`編集 ${it.name}`}
                   >
-                    <Edit3 size={16} /> <span className="action-label">編集</span>
+                    <Edit3 size={16} />{" "}
+                    <span className="action-label">編集</span>
                   </button>
                   <button
                     onClick={() => handleDelete(it.id)}
                     className="flex items-center gap-1 px-3 py-1 rounded-full action-btn action-delete"
                     aria-label={`削除 ${it.name}`}
                   >
-                    <Trash2 size={16} /> <span className="action-label">削除</span>
+                    <Trash2 size={16} />{" "}
+                    <span className="action-label">削除</span>
                   </button>
                 </motion.div>
               )}
@@ -116,38 +125,38 @@ export default function IngredientList() {
       )}
 
       {/* 編集モーダル（Portalで最前面に） */}
-      {mounted && createPortal(
-        <AnimatePresence>
-          {editingItem !== null && (
-            <motion.div
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {editingItem !== null && (
               <motion.div
-                className="relative w-full max-w-md rounded-2xl shadow-2xl modal-card"
-                initial={{ scale: 0.97, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.97, opacity: 0 }}
-                transition={{ duration: 0.18 }}
+                className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
               >
-                <AddEditModal
-                  item={editingItem}
-                  onSave={(it: any) => {
-                    if (it.__deleteId) deleteItem(it.__deleteId);
-                    else addOrUpdateItem(it);
-                    setEditingItem(null);
-                  }}
-                  onCancel={() => setEditingItem(null)}
-                />
+                <motion.div
+                  className="relative w-full max-w-md rounded-2xl shadow-2xl modal-card"
+                  initial={{ scale: 0.97, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.97, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <AddEditModal
+                    item={editingItem}
+                    onSave={(it: any) => {
+                      if (it.__deleteId) deleteItem(it.__deleteId);
+                      else addOrUpdateItem(it);
+                      setEditingItem(null);
+                    }}
+                    onCancel={() => setEditingItem(null)}
+                  />
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 }

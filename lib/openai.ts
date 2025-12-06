@@ -27,7 +27,7 @@ function cacheKeyFor(opts: CallOpts) {
 
 export async function callOpenAIOnce(
   opts: CallOpts,
-  timeoutMs = 15_000
+  timeoutMs = 15_000,
 ): Promise<any> {
   if (!process.env.OPENAI_API_KEY) {
     const err: any = new Error("OPENAI_API_KEY is not set");
@@ -42,7 +42,8 @@ export async function callOpenAIOnce(
     return cached.value;
   }
 
-  const model = opts.model ?? (opts.preferHighQuality ? "gpt-4o" : "gpt-4o-mini");
+  const model =
+    opts.model ?? (opts.preferHighQuality ? "gpt-4o" : "gpt-4o-mini");
 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -52,8 +53,10 @@ export async function callOpenAIOnce(
       model,
       input: opts.input,
     };
-    if (typeof opts.max_output_tokens === "number") body.max_output_tokens = opts.max_output_tokens;
-    if (typeof opts.temperature === "number") body.temperature = opts.temperature;
+    if (typeof opts.max_output_tokens === "number")
+      body.max_output_tokens = opts.max_output_tokens;
+    if (typeof opts.temperature === "number")
+      body.temperature = opts.temperature;
 
     const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -70,7 +73,9 @@ export async function callOpenAIOnce(
     const rawText = await res.text().catch(() => "");
 
     if (!res.ok) {
-      const err: any = new Error(`OpenAI API error: ${res.status} ${res.statusText}`);
+      const err: any = new Error(
+        `OpenAI API error: ${res.status} ${res.statusText}`,
+      );
       err.status = res.status;
       err.raw = rawText;
       throw err;
@@ -133,7 +138,8 @@ export function extractTextFromResponse(respJson: any): string {
   try {
     if (Array.isArray(respJson.choices) && respJson.choices.length > 0) {
       const c = respJson.choices[0];
-      if (c.message && typeof c.message.content === "string") return c.message.content;
+      if (c.message && typeof c.message.content === "string")
+        return c.message.content;
       if (typeof c.text === "string") return c.text;
     }
   } catch {
@@ -141,7 +147,8 @@ export function extractTextFromResponse(respJson: any): string {
   }
 
   // 3) direct field
-  if (typeof respJson.output_text === "string" && respJson.output_text.trim()) return respJson.output_text;
+  if (typeof respJson.output_text === "string" && respJson.output_text.trim())
+    return respJson.output_text;
   if (typeof respJson.text === "string") return respJson.text;
 
   // 4) stringify fallback

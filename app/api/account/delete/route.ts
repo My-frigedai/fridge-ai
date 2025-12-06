@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!token?.sub) {
       return NextResponse.json(
         { error: "ログインが必要です" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     console.error("delete account error:", err);
     return NextResponse.json(
       { error: "アカウント削除に失敗しました" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

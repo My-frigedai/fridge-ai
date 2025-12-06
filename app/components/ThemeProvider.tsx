@@ -19,7 +19,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const applyTheme = (mode: ThemeMode) => {
     const root = document.documentElement;
     if (mode === "system") {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
       root.setAttribute("data-theme", prefersDark ? "dark" : "light");
     } else {
       root.setAttribute("data-theme", mode);
@@ -27,7 +29,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const saved = (localStorage.getItem("theme") as ThemeMode | null) || "system";
+    const saved =
+      (localStorage.getItem("theme") as ThemeMode | null) || "system";
     setThemeState(saved);
     applyTheme(saved);
 
@@ -43,7 +46,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (mq.removeEventListener) mq.removeEventListener("change", handler);
       else mq.removeListener(handler);
     };
-     
   }, []);
 
   const setTheme = (mode: ThemeMode) => {
@@ -52,7 +54,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(mode);
   };
 
-  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

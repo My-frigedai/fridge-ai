@@ -29,7 +29,9 @@ export default function TermsPage() {
         <li>本サービスの運営を妨害する行為</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2">第4条（本サービスの提供の停止）</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2">
+        第4条（本サービスの提供の停止）
+      </h2>
       <p className="mb-4 legal-text">
         当社は，以下のいずれかの事由があると判断した場合，ユーザーに事前に通知することなく本サービスの全部または一部の提供を停止することができます。
       </p>
@@ -45,7 +47,9 @@ export default function TermsPage() {
         当社は，必要と判断した場合には，ユーザーに通知することなく本規約を変更することができます。
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2">第7条（準拠法・裁判管轄）</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2">
+        第7条（準拠法・裁判管轄）
+      </h2>
       <p className="mb-4 legal-text">
         本規約の解釈にあたっては，日本法を準拠法とします。本サービスに関して紛争が生じた場合には，当社の本店所在地を管轄する裁判所を専属的合意管轄とします。
       </p>

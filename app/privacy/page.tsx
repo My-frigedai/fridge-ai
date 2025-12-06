@@ -11,7 +11,9 @@ export default function PrivacyPage() {
         本プライバシーポリシーは，本サービス「My-fridgeai」におけるユーザーの個人情報の取扱いについて定めるものです。
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2">第1条（個人情報の収集）</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2">
+        第1条（個人情報の収集）
+      </h2>
       <p className="mb-4 legal-text">
         本サービスでは，ユーザーが登録する際にメールアドレスなどの個人情報を収集することがあります。
       </p>
@@ -30,10 +32,13 @@ export default function PrivacyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2">第4条（アクセス解析）</h2>
       <p className="mb-4 legal-text">
-        当社はサービス改善のため，CookieやGoogle Analytics等を用いたアクセス解析を行う場合があります。
+        当社はサービス改善のため，CookieやGoogle
+        Analytics等を用いたアクセス解析を行う場合があります。
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2">第5条（問い合わせ窓口）</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2">
+        第5条（問い合わせ窓口）
+      </h2>
       <p className="mb-4 legal-text">
         個人情報の取扱いに関するお問い合わせは，アプリ内の「お問い合わせ」ページよりご連絡ください。
       </p>

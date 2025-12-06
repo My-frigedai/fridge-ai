@@ -25,7 +25,7 @@ export async function middleware(req: NextRequest) {
 
   // ✅ 認証不要ページを拡張
   const publicPaths = ["/login", "/register", "/terms", "/privacy"];
-  const isPublicPage = publicPaths.some(path => pathname.startsWith(path));
+  const isPublicPage = publicPaths.some((path) => pathname.startsWith(path));
 
   if (!token && !isPublicPage) {
     const loginUrl = new URL("/register", req.url);

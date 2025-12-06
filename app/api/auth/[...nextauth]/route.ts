@@ -21,7 +21,11 @@ export const authOptions: NextAuthOptions = {
       id: "credentials",
       name: "Email (password or token)",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "you@example.com" },
+        email: {
+          label: "Email",
+          type: "email",
+          placeholder: "you@example.com",
+        },
         password: { label: "Password", type: "password" },
         token: { label: "Token", type: "text" }, // one-time token from passkey flow
       },
@@ -43,7 +47,11 @@ export const authOptions: NextAuthOptions = {
               where: { id: user.id },
               data: { verifyCode: null, verifyExpires: null },
             });
-            return { id: user.id, email: user.email, name: user.name ?? undefined };
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name ?? undefined,
+            };
           }
 
           // fallback: email/password flow
@@ -54,7 +62,11 @@ export const authOptions: NextAuthOptions = {
           if (user.status !== "active") return null;
           const ok = await compare(String(credentials.password), user.password);
           if (!ok) return null;
-          return { id: user.id, email: user.email, name: user.name ?? undefined };
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? undefined,
+          };
         } catch (err) {
           console.error("CredentialsProvider authorize error:", err);
           return null;

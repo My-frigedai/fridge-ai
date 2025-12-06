@@ -2,11 +2,17 @@
 "use client";
 import React, { useEffect } from "react";
 
-export default function Toast({ msg, onClose }: { msg: string | null; onClose?: ()=>void }) {
-  useEffect(()=> {
+export default function Toast({
+  msg,
+  onClose,
+}: {
+  msg: string | null;
+  onClose?: () => void;
+}) {
+  useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(()=> onClose?.(), 3500);
-    return ()=> clearTimeout(t);
+    const t = setTimeout(() => onClose?.(), 3500);
+    return () => clearTimeout(t);
   }, [msg, onClose]);
 
   if (!msg) return null;

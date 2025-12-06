@@ -14,10 +14,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (!token?.sub) {
-      return NextResponse.json(
-        { error: "認証が必要です。" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
     }
 
     // クライアントから送られてきたデータを取得
@@ -25,7 +22,7 @@ export async function PATCH(req: NextRequest) {
     if (!password || typeof password !== "string") {
       return NextResponse.json(
         { error: "パスワードが不正です。" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -43,7 +40,7 @@ export async function PATCH(req: NextRequest) {
     console.error("change password error:", err);
     return NextResponse.json(
       { error: "パスワード変更に失敗しました。" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

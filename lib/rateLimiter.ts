@@ -13,7 +13,7 @@ const requests = new Map<string, { count: number; timestamp: number }>();
 export async function rateLimit(
   key: string,
   limit: number,
-  windowSeconds: number
+  windowSeconds: number,
 ): Promise<{ ok: boolean; remaining: number }> {
   const now = Date.now();
   const windowStart = now - windowSeconds * 1000;

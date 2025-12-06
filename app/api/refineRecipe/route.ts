@@ -13,10 +13,7 @@ export async function POST(req: NextRequest) {
     // ← await 忘れずに
     const rl = await rateLimit(`refine:${ip}`, 40, 60);
     if (!rl.ok) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     const body = await req.json();
@@ -46,7 +43,7 @@ export async function POST(req: NextRequest) {
         input: prompt,
         max_output_tokens: 1200,
       },
-      30_000
+      30_000,
     );
 
     const raw = extractTextFromResponse(resp);
@@ -69,7 +66,7 @@ export async function POST(req: NextRequest) {
     console.error("refineRecipe error:", err);
     return NextResponse.json(
       { error: err?.message ?? "server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

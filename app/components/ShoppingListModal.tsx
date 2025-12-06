@@ -2,7 +2,13 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/app/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/app/components/ui/dialog";
 import { Button } from "@/app/components/ui/button";
 
 type ShoppingListModalProps = {
@@ -12,7 +18,12 @@ type ShoppingListModalProps = {
   removeItem: (item: string) => void;
 };
 
-export default function ShoppingListModal({ open, onClose, shoppingList, removeItem }: ShoppingListModalProps) {
+export default function ShoppingListModal({
+  open,
+  onClose,
+  shoppingList,
+  removeItem,
+}: ShoppingListModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -26,10 +37,17 @@ export default function ShoppingListModal({ open, onClose, shoppingList, removeI
           {shoppingList.length === 0 ? (
             <p>買い物リストは空です。</p>
           ) : (
-            shoppingList.map(item => (
-              <div key={item} className="flex justify-between items-center p-2 border rounded">
+            shoppingList.map((item) => (
+              <div
+                key={item}
+                className="flex justify-between items-center p-2 border rounded"
+              >
                 <span>{item}</span>
-                <Button size="sm" variant="outline" onClick={() => removeItem(item)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => removeItem(item)}
+                >
                   削除
                 </Button>
               </div>
@@ -45,7 +63,6 @@ export default function ShoppingListModal({ open, onClose, shoppingList, removeI
             </Button>
           </DialogFooter>
         </div>
-
       </DialogContent>
     </Dialog>
   );

@@ -8,7 +8,10 @@ import { rateLimit } from "@/lib/rateLimiter";
 export async function POST(request: NextRequest) {
   try {
     // --- 🔒 認証チェック ---
-    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
     if (!token) {
       return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
     }
@@ -24,7 +27,7 @@ export async function POST(request: NextRequest) {
     if (!rl.ok) {
       return NextResponse.json(
         { error: "リクエストが多すぎます。しばらくしてからお試しください。" },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -40,7 +43,11 @@ export async function POST(request: NextRequest) {
     // --- 🕓 usageHistory 保存 ---
     prisma.usageHistory
       .create({
-        data: { userId, action: "generate", meta: { at: new Date().toISOString() } },
+        data: {
+          userId,
+          action: "generate",
+          meta: { at: new Date().toISOString() },
+        },
       })
       .catch((err) => console.warn("usageHistory 保存に失敗:", err));
 
@@ -85,7 +92,7 @@ export async function POST(request: NextRequest) {
         input: prompt,
         max_output_tokens: 1000,
       },
-      25000
+      25000,
     );
 
     // --- 🧩 JSON抽出 ---
@@ -141,7 +148,7 @@ export async function POST(request: NextRequest) {
     console.error("generateMenu error:", err);
     return NextResponse.json(
       { error: "献立の生成中にエラーが発生しました。" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

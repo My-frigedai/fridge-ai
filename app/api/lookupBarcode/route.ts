@@ -13,13 +13,19 @@ export async function POST(req: NextRequest) {
   try {
     const { barcode } = await req.json();
     if (!barcode) {
-      return NextResponse.json({ error: "バーコードが指定されていません。" }, { status: 400 });
+      return NextResponse.json(
+        { error: "バーコードが指定されていません。" },
+        { status: 400 },
+      );
     }
 
     const product = await lookupBarcode(barcode);
 
     if (!product.found) {
-      return NextResponse.json({ error: "該当する商品が見つかりませんでした。" }, { status: 404 });
+      return NextResponse.json(
+        { error: "該当する商品が見つかりませんでした。" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ product });
@@ -27,7 +33,7 @@ export async function POST(req: NextRequest) {
     console.error("lookupBarcode error:", e);
     return NextResponse.json(
       { error: "バーコード検索に失敗しました。再度お試しください。" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

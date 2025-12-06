@@ -26,7 +26,11 @@
   --background: linear-gradient(180deg, #0a0f1c 0%, #131e33 45%, #1c2945 100%);
   --foreground: #f3f6fc;
   --accent: #ff9550;
-  --card-bg: linear-gradient(180deg, rgba(35, 46, 75, 0.88) 0%, rgba(20, 28, 45, 0.9) 100%);
+  --card-bg: linear-gradient(
+    180deg,
+    rgba(35, 46, 75, 0.88) 0%,
+    rgba(20, 28, 45, 0.9) 100%
+  );
   --surface-bg: rgba(40, 52, 82, 0.85);
   --surface-border: rgba(255, 255, 255, 0.08);
   --color-text-primary: #f9fbff;
@@ -47,16 +51,25 @@ body {
   font-family: var(--font-sans);
   margin: 0;
   padding: 0;
-  transition: background 400ms ease, color 400ms ease;
+  transition:
+    background 400ms ease,
+    color 400ms ease;
   background-attachment: fixed;
   background-size: cover;
 }
 
-h1, h2, h3, .title {
+h1,
+h2,
+h3,
+.title {
   color: var(--color-text-primary);
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.08), 0 0 2px rgba(255, 255, 255, 0.1);
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.08),
+    0 0 2px rgba(255, 255, 255, 0.1);
   letter-spacing: 0.03em;
-  transition: color 0.3s ease, text-shadow 0.3s ease;
+  transition:
+    color 0.3s ease,
+    text-shadow 0.3s ease;
 }
 
 /* ===============================
@@ -73,10 +86,15 @@ h1, h2, h3, .title {
   border-radius: 0.5rem;
   outline: none;
   width: 100%;
-  transition: all 0.25s ease, box-shadow 160ms ease, border-color 160ms ease;
+  transition:
+    all 0.25s ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 
-.input { padding: 0.75rem; } /* 元の .input 固有のパディングを維持 */
+.input {
+  padding: 0.75rem;
+} /* 元の .input 固有のパディングを維持 */
 
 .input:focus,
 .input-field:focus,
@@ -100,7 +118,10 @@ h1, h2, h3, .title {
   border: 1px solid var(--surface-border);
   color: var(--color-text-primary);
   animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, background 0.4s ease;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s ease,
+    background 0.4s ease;
 }
 
 .card:hover {
@@ -172,13 +193,25 @@ h1, h2, h3, .title {
    =============================== */
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes bounce-down {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(2px); }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(2px);
+  }
 }
 
 /* ===============================
@@ -206,7 +239,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1) brightness(1.5);
   opacity: 0.9;
 }
-input[type="date"] { color-scheme: dark; }
+input[type="date"] {
+  color-scheme: dark;
+}
 
 /* ===============================
    献立ウィザード
@@ -234,7 +269,9 @@ input[type="date"] { color-scheme: dark; }
   transition: color 0.3s ease;
 }
 
-.wizard-label { color: inherit !important; }
+.wizard-label {
+  color: inherit !important;
+}
 
 .wizard-input {
   border-radius: 0.5rem;
@@ -264,22 +301,27 @@ input[type="date"] { color-scheme: dark; }
 /* 入力の背景（ウィザード） */
 :root:not([data-theme="dark"]) .wizard-input {
   background: #ffffff !important;
-  border: 1px solid rgba(0,0,0,0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
 }
 :root[data-theme="dark"] .wizard-input {
-  background: rgba(255,255,255,0.02) !important;
-  border: 1px solid rgba(255,255,255,0.06) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 /* 日付アイコン（ウィザード） */
-:root:not([data-theme="dark"]) input[type="date"]::-webkit-calendar-picker-indicator {
+:root:not([data-theme="dark"])
+  input[type="date"]::-webkit-calendar-picker-indicator {
   filter: none !important;
   opacity: 0.95 !important;
 }
 
 /* 小注釈 */
-:root:not([data-theme="dark"]) .wizard-note { color: #6b7280 !important; }
-:root[data-theme="dark"] .wizard-note { color: #9ba3b7 !important; }
+:root:not([data-theme="dark"]) .wizard-note {
+  color: #6b7280 !important;
+}
+:root[data-theme="dark"] .wizard-note {
+  color: #9ba3b7 !important;
+}
 
 /* ===============================
    Logout Button (Dark Mode Fix)
@@ -306,7 +348,9 @@ input[type="date"] { color-scheme: dark; }
    =============================== */
 
 @media (max-width: 640px) {
-  .card { padding: 1.4rem; }
+  .card {
+    padding: 1.4rem;
+  }
 }
 
 /* Terms / Privacy 専用テーマ */
@@ -337,7 +381,9 @@ input[type="date"] { color-scheme: dark; }
   color: var(--color-text-primary);
   background: transparent;
   border: 1px solid transparent;
-  transition: background 180ms ease, color 180ms ease;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
 }
 .menu-button:hover {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
@@ -345,7 +391,9 @@ input[type="date"] { color-scheme: dark; }
 
 /* menu panel actions (edit / delete) */
 .menu-action {
-  transition: background 160ms ease, color 160ms ease;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
   font-weight: 600;
 }
 
@@ -375,9 +423,11 @@ input[type="date"] { color-scheme: dark; }
 }
 
 /* modal overlay & card (theme aware) */
-.modal-overlay { pointer-events: auto; }
+.modal-overlay {
+  pointer-events: auto;
+}
 .modal-backdrop {
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   position: absolute;
   inset: 0;
   backdrop-filter: blur(2px);
@@ -396,10 +446,12 @@ input[type="date"] { color-scheme: dark; }
   padding: 0.6rem 0.75rem;
   border-radius: 0.6rem;
   outline: none;
-  transition: box-shadow 160ms ease, border-color 160ms ease;
+  transition:
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 .input-field:focus {
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   border-color: color-mix(in srgb, var(--accent) 50%, #0000);
 }
 
@@ -410,7 +462,10 @@ input[type="date"] { color-scheme: dark; }
   border: 1px solid var(--surface-border);
   padding: 0.6rem 1rem;
   border-radius: 9999px;
-  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
   box-shadow: none !important;
 }
 .cancel-btn:hover {
@@ -438,7 +493,9 @@ input[type="date"] { color-scheme: dark; }
 
 /* responsive tweaks */
 @media (max-width: 640px) {
-  .modal-card { padding: 1rem; }
+  .modal-card {
+    padding: 1rem;
+  }
 }
 
 /* Accessibility: focus */
@@ -454,7 +511,9 @@ input[type="date"] { color-scheme: dark; }
    IngredientList / Modal - Theme-aware tweaks
    =============================== */
 
-.ingredient-row { background: transparent; }
+.ingredient-row {
+  background: transparent;
+}
 
 .ingredient-name {
   font-size: 1rem;
@@ -494,47 +553,50 @@ input[type="date"] { color-scheme: dark; }
   font-size: 0.9rem;
   font-weight: 600;
   border: 1px solid transparent;
-  transition: transform 160ms ease, background 180ms ease, color 180ms ease;
+  transition:
+    transform 160ms ease,
+    background 180ms ease,
+    color 180ms ease;
 }
 
 /* ライト／ダークでの edit/delete 変化（元の色を保持） */
 :root:not([data-theme="dark"]) .action-edit {
-  background: rgba(255,145,77,0.10);
+  background: rgba(255, 145, 77, 0.1);
   color: #ff7a2a;
-  border: 1px solid rgba(255,145,77,0.14);
+  border: 1px solid rgba(255, 145, 77, 0.14);
 }
 :root:not([data-theme="dark"]) .action-edit:hover {
-  background: rgba(255,145,77,0.14);
+  background: rgba(255, 145, 77, 0.14);
   transform: translateY(-2px);
 }
 
 :root:not([data-theme="dark"]) .action-delete {
-  background: rgba(239,68,68,0.08);
+  background: rgba(239, 68, 68, 0.08);
   color: #c53030;
-  border: 1px solid rgba(239,68,68,0.10);
+  border: 1px solid rgba(239, 68, 68, 0.1);
 }
 :root:not([data-theme="dark"]) .action-delete:hover {
-  background: rgba(239,68,68,0.12);
+  background: rgba(239, 68, 68, 0.12);
   transform: translateY(-2px);
 }
 
 :root[data-theme="dark"] .action-edit {
-  background: rgba(59,130,246,0.12);
+  background: rgba(59, 130, 246, 0.12);
   color: #93c5fd;
-  border: 1px solid rgba(147,197,253,0.08);
+  border: 1px solid rgba(147, 197, 253, 0.08);
 }
 :root[data-theme="dark"] .action-edit:hover {
-  background: rgba(59,130,246,0.18);
+  background: rgba(59, 130, 246, 0.18);
   transform: translateY(-2px);
 }
 
 :root[data-theme="dark"] .action-delete {
-  background: rgba(239,68,68,0.12);
+  background: rgba(239, 68, 68, 0.12);
   color: #fecaca;
-  border: 1px solid rgba(252,165,165,0.08);
+  border: 1px solid rgba(252, 165, 165, 0.08);
 }
 :root[data-theme="dark"] .action-delete:hover {
-  background: rgba(239,68,68,0.16);
+  background: rgba(239, 68, 68, 0.16);
   transform: translateY(-2px);
 }
 
@@ -565,13 +627,15 @@ input[type="date"] { color-scheme: dark; }
 
 /* overlays (theme aware) */
 :root:not([data-theme="dark"]) .modal-overlay {
-  background: rgba(0,0,0,0.45);
+  background: rgba(0, 0, 0, 0.45);
 }
 :root[data-theme="dark"] .modal-overlay {
-  background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 /* small-screen tweak: hide action label on tiny screens */
 @media (max-width: 640px) {
-  .action-label { display: none; }
+  .action-label {
+    display: none;
+  }
 }

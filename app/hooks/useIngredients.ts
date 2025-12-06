@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 
 export function useIngredients() {
   const { data: session } = useSession();
-  const [items, setItems] = useState<any[]|null>(null);
+  const [items, setItems] = useState<any[] | null>(null);
   useEffect(() => {
     if (!session) return;
     (async () => {
@@ -24,7 +24,9 @@ export function useIngredients() {
     });
     const j = await res.json();
     // refetch simple approach
-    const newlist = await (await fetch("/api/ingredients", { credentials: "include" })).json();
+    const newlist = await (
+      await fetch("/api/ingredients", { credentials: "include" })
+    ).json();
     setItems(newlist.items || []);
     return j;
   }

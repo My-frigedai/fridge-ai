@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SessionWrapper from "./SessionWrapper";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
-import { FridgeProvider } from "@/app/components/FridgeProvider"; 
+import { FridgeProvider } from "@/app/components/FridgeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,10 +27,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
         <SessionWrapper>
           <ThemeProvider>
-            <FridgeProvider> {/* ✅ ここで全体を包む！ */}
+            <FridgeProvider>
+              {" "}
+              {/* ✅ ここで全体を包む！ */}
               {children}
             </FridgeProvider>
           </ThemeProvider>

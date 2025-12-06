@@ -4,7 +4,7 @@
 
 type ParsedQuantity = {
   amount: number; // 基本的に数値（単位換算後のベース量）
-  unit: string;   // 正規化ユニット: "ml" | "g" | "count" | "unknown"
+  unit: string; // 正規化ユニット: "ml" | "g" | "count" | "unknown"
   raw?: string;
   note?: string;
 };
@@ -14,13 +14,13 @@ function parseNumberToken(tok: string): number | null {
   tok = tok.trim();
   // Handle fraction like "1/2"
   if (/^\d+\s*\/\s*\d+$/.test(tok)) {
-    const [a, b] = tok.split("/").map(s => Number(s.trim()));
+    const [a, b] = tok.split("/").map((s) => Number(s.trim()));
     if (b === 0) return null;
     return a / b;
   }
   // Handle ranges like "2-3" or "2〜3" -> take average
   if (/^\d+(\.\d+)?\s*[-〜~]\s*\d+(\.\d+)?$/.test(tok)) {
-    const parts = tok.split(/[-〜~]/).map(s => Number(s.trim()));
+    const parts = tok.split(/[-〜~]/).map((s) => Number(s.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       return (parts[0] + parts[1]) / 2;
     }
@@ -39,7 +39,9 @@ export function parseQuantityText(text: string): ParsedQuantity {
 
   // Try to extract last token that looks like number+unit
   // Common units: ml, l, g, kg, 個, 個, 枚, 本, カップ, tsp, tbsp (we map only the important ones)
-  const m = raw.match(/([\d.,\/\s\-〜~]+)\s*(ml|l|g|kg|kg|個|枚|本|カップ|カップス|cup|cups|tsp|tbsp|個分)?$/i);
+  const m = raw.match(
+    /([\d.,\/\s\-〜~]+)\s*(ml|l|g|kg|kg|個|枚|本|カップ|カップス|cup|cups|tsp|tbsp|個分)?$/i,
+  );
   if (m) {
     const numToken = (m[1] || "").trim();
     const unitToken = (m[2] || "").toLowerCase();
@@ -81,7 +83,8 @@ export function parseQuantityText(text: string): ParsedQuantity {
 
   // If no numeric token found, maybe the string only has name (e.g., "卵") => default count 1
   // Also if it contains '少々' or '適量' treat as count 0 (no subtraction)
-  if (/少々|適量|適宜/.test(raw)) return { amount: 0, unit: "unknown", raw, note: "ambiguous" };
+  if (/少々|適量|適宜/.test(raw))
+    return { amount: 0, unit: "unknown", raw, note: "ambiguous" };
 
   // If it contains '個' somewhere without number, assume 1
   if (raw.match(/個/)) return { amount: 1, unit: "count", raw };
@@ -100,7 +103,10 @@ export function normalizeName(name: string): string {
   // remove content in parentheses
   s = s.replace(/\(.*?\)|（.*?）/g, "");
   // remove punctuation
-  s = s.replace(/[^0-9a-z\u3040-\u30ff\u4e00-\u9faf\u3000-\u303fぁ-んーァ-ン一-龠々\s]/g, " ");
+  s = s.replace(
+    /[^0-9a-z\u3040-\u30ff\u4e00-\u9faf\u3000-\u303fぁ-んーァ-ン一-龠々\s]/g,
+    " ",
+  );
   s = s.replace(/\s+/g, " ").trim();
   return s;
 }

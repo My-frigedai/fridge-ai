@@ -1,6 +1,10 @@
 // app/api/menu/wizard/route.ts
 import { NextResponse } from "next/server";
-import { callOpenAIOnce, extractTextFromResponse, extractJsonFromText } from "@/lib/openai";
+import {
+  callOpenAIOnce,
+  extractTextFromResponse,
+  extractJsonFromText,
+} from "@/lib/openai";
 
 /**
  * Wizard route (minimal tokens)
@@ -14,12 +18,16 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const mealTypes = Array.isArray(body.mealTypes) ? body.mealTypes : ["主菜"];
     const servings = Math.max(1, Number(body.servings ?? 1));
-    const usedFridgeItems = Array.isArray(body.usedFridgeItems) ? body.usedFridgeItems : [];
+    const usedFridgeItems = Array.isArray(body.usedFridgeItems)
+      ? body.usedFridgeItems
+      : [];
     const mode = body.mode === "omakase" ? "omakase" : "selected";
     const appetite = typeof body.appetite === "string" ? body.appetite : "普通";
     const preferHighQuality = !!body.highQuality; // optional flag from UI
 
-    const briefItemList = usedFridgeItems.length ? usedFridgeItems.join(", ") : "なし";
+    const briefItemList = usedFridgeItems.length
+      ? usedFridgeItems.join(", ")
+      : "なし";
 
     const modeInstruction =
       mode === "omakase"
@@ -58,7 +66,7 @@ export async function POST(req: Request) {
           max_output_tokens: 500,
           temperature: 0.15,
         },
-        15_000
+        15_000,
       );
 
       const raw = extractTextFromResponse(resp) ?? "";
@@ -84,7 +92,11 @@ export async function POST(req: Request) {
 
       if (!menus || menus.length === 0) {
         // fallback deterministic
-        const fallback = fallbackGeneratedMenus(usedFridgeItems, mealTypes, servings);
+        const fallback = fallbackGeneratedMenus(
+          usedFridgeItems,
+          mealTypes,
+          servings,
+        );
         return NextResponse.json({ menus: fallback, raw, fallback: true });
       }
 
@@ -92,7 +104,9 @@ export async function POST(req: Request) {
       menus = menus.map((m: any) => ({
         title: typeof m.title === "string" ? m.title : "料理",
         time: typeof m.time === "string" ? m.time : "約30分",
-        difficulty: ["低", "中", "高"].includes(m.difficulty) ? m.difficulty : "中",
+        difficulty: ["低", "中", "高"].includes(m.difficulty)
+          ? m.difficulty
+          : "中",
         tips: typeof m.tips === "string" ? m.tips : "",
         ingredients: Array.isArray(m.ingredients) ? m.ingredients : [],
         usedItems: Array.isArray(m.usedItems) ? m.usedItems : [],
@@ -102,17 +116,35 @@ export async function POST(req: Request) {
     } catch (err: any) {
       console.warn("wizard: OpenAI call error:", err);
       // immediate fallback — do not retry
-      const fallback = fallbackGeneratedMenus(usedFridgeItems, mealTypes, servings);
-      return NextResponse.json({ menus: fallback, raw: null, fallback: true, details: err?.message ?? String(err) });
+      const fallback = fallbackGeneratedMenus(
+        usedFridgeItems,
+        mealTypes,
+        servings,
+      );
+      return NextResponse.json({
+        menus: fallback,
+        raw: null,
+        fallback: true,
+        details: err?.message ?? String(err),
+      });
     }
   } catch (err: any) {
     console.error("wizard route fatal:", err);
-    return NextResponse.json({ error: "献立生成に失敗しました", details: err?.message ?? String(err) }, { status: 500 });
+    return NextResponse.json(
+      { error: "献立生成に失敗しました", details: err?.message ?? String(err) },
+      { status: 500 },
+    );
   }
 }
 
-function fallbackGeneratedMenus(usedFridgeItems: string[], mealTypes: string[], servings: number) {
-  const items = usedFridgeItems.length ? usedFridgeItems : ["卵", "野菜", "ごはん"];
+function fallbackGeneratedMenus(
+  usedFridgeItems: string[],
+  mealTypes: string[],
+  servings: number,
+) {
+  const items = usedFridgeItems.length
+    ? usedFridgeItems
+    : ["卵", "野菜", "ごはん"];
   const titles: string[] = [];
   for (let i = 0; i < Math.min(3, items.length); i++) {
     const t = `${items[i]}の${mealTypes[i % mealTypes.length] ?? "料理"}`;

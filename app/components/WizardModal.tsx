@@ -52,7 +52,8 @@ export default function WizardModal({
 
   const selectedNames = Object.keys(selectedMap).filter((k) => selectedMap[k]);
   const selectedCount = selectedNames.length;
-  const allSelected = fridgeItems.length > 0 && selectedCount === fridgeItems.length;
+  const allSelected =
+    fridgeItems.length > 0 && selectedCount === fridgeItems.length;
 
   const toggleItem = (name: string) => {
     setSelectedMap((s) => ({ ...s, [name]: !s[name] }));
@@ -86,7 +87,9 @@ export default function WizardModal({
 
     // if in selected mode, require at least 1 selected
     if (mode === "selected" && selectedCount === 0) {
-      toast.error("最低1つの食材を選択してください（使用する食材を選んでください）");
+      toast.error(
+        "最低1つの食材を選択してください（使用する食材を選んでください）",
+      );
       return;
     }
 
@@ -127,7 +130,9 @@ export default function WizardModal({
       const menus = Array.isArray(data.menus) ? data.menus : [];
       onComplete(menus);
       onClose();
-      toast.success(menus.length ? "献立を取得しました" : "献立が見つかりませんでした");
+      toast.success(
+        menus.length ? "献立を取得しました" : "献立が見つかりませんでした",
+      );
     } catch (err: any) {
       console.error("WizardModal.generateMenus error", err);
       toast.error("献立生成中にエラーが発生しました");
@@ -146,14 +151,18 @@ export default function WizardModal({
   const itemSelectedStyle = {
     background: "var(--accent)",
     color: "white",
-    borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)" as unknown as string,
+    borderColor:
+      "color-mix(in srgb, var(--accent) 40%, transparent)" as unknown as string,
   } as React.CSSProperties;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl modal-card">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
+          <DialogTitle
+            className="text-xl font-bold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
             献立ウィザード — 食材選択
           </DialogTitle>
         </DialogHeader>
@@ -161,33 +170,68 @@ export default function WizardModal({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>
+              <div
+                className="font-medium"
+                style={{ color: "var(--color-text-primary)" }}
+              >
                 冷蔵庫から使う食材を選択してください
               </div>
-              <div className="text-xs wizard-note" style={{ color: "var(--color-text-muted)" }}>
+              <div
+                className="text-xs wizard-note"
+                style={{ color: "var(--color-text-muted)" }}
+              >
                 選択した食材のみを使って献立を生成します（選択外の食材は使用しません）。おまかせにすると登録食材から優先して使用します。
               </div>
             </div>
 
-            <div style={{ color: "var(--color-text-secondary)" }} className="text-sm">
-              選択: <strong style={{ color: "var(--color-text-primary)" }}>{selectedCount}</strong>
+            <div
+              style={{ color: "var(--color-text-secondary)" }}
+              className="text-sm"
+            >
+              選択:{" "}
+              <strong style={{ color: "var(--color-text-primary)" }}>
+                {selectedCount}
+              </strong>
             </div>
           </div>
 
           <div className="flex gap-2 items-center">
-            <Button variant="outline" onClick={selectAll} aria-label="全選択" className="text-sm">
+            <Button
+              variant="outline"
+              onClick={selectAll}
+              aria-label="全選択"
+              className="text-sm"
+            >
               全選択
             </Button>
-            <Button variant="outline" onClick={clearAll} aria-label="全解除" className="text-sm">
+            <Button
+              variant="outline"
+              onClick={clearAll}
+              aria-label="全解除"
+              className="text-sm"
+            >
               全解除
             </Button>
 
-            <div className="ml-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
-              {allSelected ? "すべて選択済み" : `${fridgeItems.length} 件中 ${selectedCount} 件選択`}
+            <div
+              className="ml-2 text-sm"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              {allSelected
+                ? "すべて選択済み"
+                : `${fridgeItems.length} 件中 ${selectedCount} 件選択`}
             </div>
 
-            <div style={{ marginLeft: "auto" }} className="flex items-center gap-2">
-              <div className="text-sm" style={{ color: "var(--color-text-primary)" }}>モード</div>
+            <div
+              style={{ marginLeft: "auto" }}
+              className="flex items-center gap-2"
+            >
+              <div
+                className="text-sm"
+                style={{ color: "var(--color-text-primary)" }}
+              >
+                モード
+              </div>
               <Button
                 variant={mode === "selected" ? "default" : "outline"}
                 onClick={() => setMode("selected")}
@@ -213,7 +257,10 @@ export default function WizardModal({
             aria-label="冷蔵庫の食材リスト"
           >
             {fridgeItems.length === 0 && (
-              <div className="col-span-2 text-sm" style={{ color: "var(--color-text-muted)", padding: 12 }}>
+              <div
+                className="col-span-2 text-sm"
+                style={{ color: "var(--color-text-muted)", padding: 12 }}
+              >
                 冷蔵庫に食材が登録されていません
               </div>
             )}
@@ -231,7 +278,9 @@ export default function WizardModal({
                   className="ingredient-row rounded-lg border p-3 cursor-pointer focus:outline-none"
                   style={sel ? itemSelectedStyle : itemBaseStyle}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 12 }}
+                  >
                     <input
                       type="checkbox"
                       checked={sel}
@@ -241,7 +290,12 @@ export default function WizardModal({
                       aria-label={`使用: ${name}`}
                     />
                     <div style={{ flex: 1 }}>
-                      <div className="ingredient-name" style={{ color: sel ? "white" : "var(--color-text-primary)" }}>
+                      <div
+                        className="ingredient-name"
+                        style={{
+                          color: sel ? "white" : "var(--color-text-primary)",
+                        }}
+                      >
                         {name}
                       </div>
                     </div>
@@ -251,38 +305,40 @@ export default function WizardModal({
             })}
           </div>
 
-          <div className="text-xs wizard-note" style={{ color: "var(--color-text-muted)" }}>
+          <div
+            className="text-xs wizard-note"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             ※「選択で生成」は選択した食材のみを使用します。「おまかせ」は登録食材を優先します。指定していない食材は絶対に使いません。
           </div>
         </div>
 
-      <div className="mt-4 flex justify-between items-center">
-        <DialogFooter>
-          <div>
-            <Button
-              onClick={generateMenus}
-              disabled={loading}
-              aria-disabled={loading}
-              aria-label="この食材で献立を作る"
-            >
-              {loading
-                ? mode === "omakase"
-                  ? "おまかせ中…"
-                  : "生成中…"
-               : mode === "omakase"
-                  ? "おまかせで生成"
-                  : "この食材で献立を作る"}
-            </Button>
-          </div>
+        <div className="mt-4 flex justify-between items-center">
+          <DialogFooter>
+            <div>
+              <Button
+                onClick={generateMenus}
+                disabled={loading}
+                aria-disabled={loading}
+                aria-label="この食材で献立を作る"
+              >
+                {loading
+                  ? mode === "omakase"
+                    ? "おまかせ中…"
+                    : "生成中…"
+                  : mode === "omakase"
+                    ? "おまかせで生成"
+                    : "この食材で献立を作る"}
+              </Button>
+            </div>
 
-          <div>
-            <Button variant="outline" onClick={() => onClose()}>
-             閉じる
-           </Button>
-         </div>
-       </DialogFooter>
-      </div>
-
+            <div>
+              <Button variant="outline" onClick={() => onClose()}>
+                閉じる
+              </Button>
+            </div>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

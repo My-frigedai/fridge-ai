@@ -17,7 +17,9 @@ export default function BarcodeScanner({
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // reset() が型定義に無い問題 → 型拡張で安全に扱う
-  const codeReaderRef = useRef<(BrowserMultiFormatReader & { reset?: () => void }) | null>(null);
+  const codeReaderRef = useRef<
+    (BrowserMultiFormatReader & { reset?: () => void }) | null
+  >(null);
 
   const [supported, setSupported] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export default function BarcodeScanner({
             if (err && err.name !== "NotFoundException") {
               console.warn("バーコード読み取りエラー:", err);
             }
-          }
+          },
         );
       } catch (e: any) {
         console.error("バーコードスキャナ初期化失敗:", e);

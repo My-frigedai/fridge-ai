@@ -16,7 +16,7 @@ export default function AddEditModal({
   const [quantity, setQuantity] = useState<number | "">(item?.quantity ?? 1);
   const [unit, setUnit] = useState(item?.unit ?? "個");
   const [expiry, setExpiry] = useState<Date | null>(
-    item?.expiry ? new Date(item.expiry) : null
+    item?.expiry ? new Date(item.expiry) : null,
   );
   const [noExpiry, setNoExpiry] = useState<boolean>(!item?.expiry);
   const [category, setCategory] = useState(item?.category ?? "その他");
@@ -148,11 +148,7 @@ export default function AddEditModal({
               name: name.trim(),
               quantity: Number(quantity || 1),
               unit,
-              expiry: noExpiry
-                ? null
-                : expiry
-                ? expiry.toISOString()
-                : null,
+              expiry: noExpiry ? null : expiry ? expiry.toISOString() : null,
               category,
             };
             if (item?.id) payload.id = item.id;

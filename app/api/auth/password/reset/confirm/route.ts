@@ -17,14 +17,14 @@ export async function POST(req: NextRequest) {
     if (!email || !token || !newPassword) {
       return NextResponse.json(
         { ok: false, message: "不正なリクエスト" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (newPassword.length < 8) {
       return NextResponse.json(
         { ok: false, message: "パスワードは8文字以上にしてください。" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     console.error("Password reset confirm error:", err);
     return NextResponse.json(
       { ok: false, message: "サーバーエラー" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

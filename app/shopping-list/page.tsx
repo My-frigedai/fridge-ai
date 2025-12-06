@@ -8,7 +8,13 @@ import Toast from "@/app/components/Toast";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function ShoppingListPage() {
-  const { shopping = [], setShopping, toast, setToast, openAddModal } = useFridge();
+  const {
+    shopping = [],
+    setShopping,
+    toast,
+    setToast,
+    openAddModal,
+  } = useFridge();
 
   const toggleDone = (index: number) => {
     const next = [...(shopping || [])];
@@ -71,9 +77,15 @@ export default function ShoppingListPage() {
         >
           {/* ALWAYS render <ul> to keep SSR/CSR DOM shape stable (prevents hydration mismatch) */}
           <ul className="space-y-2">
-            {(!shopping || shopping.length === 0) ? (
-              <li className="text-[var(--color-text-muted)] text-center py-8" aria-live="polite" style={{ opacity: 0.85 }}>
-                買い物リストは空です。<br />献立から自動生成するか、＋ ボタンで追加してください。
+            {!shopping || shopping.length === 0 ? (
+              <li
+                className="text-[var(--color-text-muted)] text-center py-8"
+                aria-live="polite"
+                style={{ opacity: 0.85 }}
+              >
+                買い物リストは空です。
+                <br />
+                献立から自動生成するか、＋ ボタンで追加してください。
               </li>
             ) : (
               <AnimatePresence>
