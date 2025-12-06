@@ -19,20 +19,46 @@ export const authOptions: NextAuthOptions = {
     }),
     CredentialsProvider({
       id: "credentials",
-      name: "Email (password)",
+      name: "Email (password or token)",
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Email", type: "email", placeholder: "you@example.com" },
         password: { label: "Password", type: "password" },
+        token: { label: "Token", type: "text" }, // one-time token from passkey flow
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const email = String(credentials.email).toLowerCase().trim();
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !user.password) return null;
-        if (user.status !== "active") return null;
-        const ok = await compare(String(credentials.password), user.password);
-        if (!ok) return null;
-        return { id: user.id, email: user.email, name: user.name ?? undefined };
+        // if called with token (from passkey authenticate), accept token-based login
+        try {
+          if (credentials?.token) {
+            const token = String(credentials.token);
+            const user = await prisma.user.findFirst({
+              where: {
+                verifyCode: token,
+                verifyExpires: { gt: new Date() }, // not expired
+                status: "active",
+              },
+            });
+            if (!user) return null;
+            // consume token (one-time)
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { verifyCode: null, verifyExpires: null },
+            });
+            return { id: user.id, email: user.email, name: user.name ?? undefined };
+          }
+
+          // fallback: email/password flow
+          if (!credentials?.email || !credentials?.password) return null;
+          const email = String(credentials.email).toLowerCase().trim();
+          const user = await prisma.user.findUnique({ where: { email } });
+          if (!user || !user.password) return null;
+          if (user.status !== "active") return null;
+          const ok = await compare(String(credentials.password), user.password);
+          if (!ok) return null;
+          return { id: user.id, email: user.email, name: user.name ?? undefined };
+        } catch (err) {
+          console.error("CredentialsProvider authorize error:", err);
+          return null;
+        }
       },
     }),
     EmailProvider({

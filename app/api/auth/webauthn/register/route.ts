@@ -1,144 +1,126 @@
-// app/api/auth/webauthn/register/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import {
-  verifyRegistrationResponse,
-  VerifiedRegistrationResponse,
-  RegistrationResponseJSON,
-} from "@simplewebauthn/server";
+import { verifyRegistrationResponse } from "@simplewebauthn/server";
 
-/** Helper: base64url -> base64 */
-function base64urlToBase64(b64url: string): string {
-  let s = b64url.replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4 !== 0) s += "=";
-  return s;
+function base64urlToBase64(s: string) {
+  let out = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (out.length % 4 !== 0) out += "=";
+  return out;
+}
+function toBuffer(input: unknown): Buffer {
+  if (Buffer.isBuffer(input)) return input;
+  if (typeof input === "string") {
+    if (/^[A-Za-z0-9\-_]+$/.test(input)) {
+      return Buffer.from(base64urlToBase64(input), "base64");
+    }
+    if (/^[A-Za-z0-9+/=]+$/.test(input)) {
+      return Buffer.from(input, "base64");
+    }
+    return Buffer.from(String(input), "utf8");
+  }
+  if (input instanceof ArrayBuffer) return Buffer.from(new Uint8Array(input));
+  if (ArrayBuffer.isView(input)) return Buffer.from((input as ArrayBufferView) as any);
+  throw new Error("Unsupported input type for toBuffer");
+}
+function bufferToBase64url(buf: Buffer) {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Helper: ArrayBuffer/ArrayBufferView/Uint8Array/Buffer -> Buffer */
-function toBuffer(input: ArrayBuffer | ArrayBufferView | Buffer | Uint8Array): Buffer {
-  return Buffer.from(input as any);
+const ORIGIN = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+let expectedOrigin: string;
+let rpID: string;
+try {
+  expectedOrigin = new URL(ORIGIN).origin;
+  rpID = new URL(ORIGIN).host;
+} catch (e) {
+  expectedOrigin = ORIGIN;
+  rpID = ORIGIN.replace(/^https?:\/\//, "");
+  console.error("[register] invalid NEXT_PUBLIC_BASE_URL parsed fallback", ORIGIN);
 }
-
-/** Helper: Buffer -> base64url (no padding) */
-function bufferToBase64url(buf: Buffer): string {
-  const b64 = buf.toString("base64");
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-/** Required origin (strict) */
-const ORIGIN = process.env.NEXT_PUBLIC_BASE_URL;
-if (!ORIGIN) {
-  throw new Error("Environment variable NEXT_PUBLIC_BASE_URL is required.");
-}
-const expectedOrigin = ORIGIN;
-const rpID = ORIGIN.replace(/^https?:\/\//, "");
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const { email: rawEmail, attestationResponse } = body ?? {};
-
     if (!rawEmail || !attestationResponse) {
+      console.error("[register] bad request body:", body);
       return NextResponse.json({ ok: false, message: "bad request" }, { status: 400 });
     }
-
     const email = String(rawEmail).toLowerCase().trim();
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.verifyToken) {
+      console.error("[register] no user or no challenge stored for", email);
       return NextResponse.json({ ok: false, message: "no challenge stored" }, { status: 400 });
     }
-
     const expectedChallenge = String(user.verifyToken);
 
-    // Cast incoming attestation to RegistrationResponseJSON for library
-    const attestationJSON = attestationResponse as RegistrationResponseJSON;
+    const attestationJSON = attestationResponse;
 
-    // Verify registration
-    const verification = (await verifyRegistrationResponse({
-      response: attestationJSON,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: rpID,
-    })) as VerifiedRegistrationResponse;
+    let verification: any;
+    try {
+      verification = await verifyRegistrationResponse({
+        response: attestationJSON,
+        expectedChallenge,
+        expectedOrigin,
+        expectedRPID: rpID,
+      } as any);
+    } catch (vErr: any) {
+      console.error("[register] verifyRegistrationResponse threw:", vErr && vErr.stack ? vErr.stack : vErr);
+      return NextResponse.json({ ok: false, message: `verification error: ${vErr?.message || String(vErr)}` }, { status: 400 });
+    }
 
-    if (!verification.verified) {
+    if (!verification || !verification.verified) {
+      console.error("[register] verification failed:", verification);
       return NextResponse.json({ ok: false, message: "registration verification failed" }, { status: 400 });
     }
 
     const registrationInfo = (verification as any).registrationInfo;
     if (!registrationInfo) {
+      console.error("[register] missing registrationInfo", verification);
       return NextResponse.json({ ok: false, message: "missing registration info" }, { status: 500 });
     }
 
-    // We'll extract credential bytes and counter robustly across possible shapes.
+    // extract
     let credentialIDBuf: Buffer | null = null;
     let publicKeyBuf: Buffer | null = null;
     let signCount = Number((registrationInfo as any).counter ?? 0);
     let transports: unknown[] = [];
 
-    // Case A: older shape where registrationInfo has credentialID / credentialPublicKey directly
     if ("credentialID" in registrationInfo && "credentialPublicKey" in registrationInfo) {
       try {
         credentialIDBuf = toBuffer((registrationInfo as any).credentialID);
         publicKeyBuf = toBuffer((registrationInfo as any).credentialPublicKey);
-        signCount = Number((registrationInfo as any).counter ?? signCount);
-        transports = (registrationInfo as any).transports ?? [];
       } catch (e) {
-        console.warn("failed to parse registrationInfo direct fields:", e);
+        console.warn("[register] parse direct fields failed:", e);
       }
     }
 
-    // Case B: newer shape where there's a `credential` object
     if ((!credentialIDBuf || !publicKeyBuf) && "credential" in registrationInfo) {
       const cred = (registrationInfo as any).credential;
-      // credential.rawId or credential.id may exist (rawId is ArrayBuffer/Uint8Array)
       if (cred) {
-        if (cred.rawId) {
-          credentialIDBuf = toBuffer(cred.rawId);
-        } else if (cred.id && typeof cred.id === "string") {
-          // cred.id might be base64url or base64 string
-          const idStr: string = cred.id;
-          const idBase64 = idStr.includes("-") || idStr.includes("_") ? base64urlToBase64(idStr) : idStr;
-          credentialIDBuf = Buffer.from(idBase64, "base64");
-        }
+        if (cred.rawId) credentialIDBuf = toBuffer(cred.rawId);
+        else if (cred.id && typeof cred.id === "string") credentialIDBuf = Buffer.from(base64urlToBase64(cred.id), "base64");
 
-        // publicKey might be in cred.publicKey or registrationInfo.credentialPublicKey
-        if (cred.publicKey) {
-          publicKeyBuf = toBuffer(cred.publicKey);
-        } else if ((registrationInfo as any).credentialPublicKey) {
-          publicKeyBuf = toBuffer((registrationInfo as any).credentialPublicKey);
-        }
+        if (cred.publicKey) publicKeyBuf = toBuffer(cred.publicKey);
+        else if ((registrationInfo as any).credentialPublicKey) publicKeyBuf = toBuffer((registrationInfo as any).credentialPublicKey);
 
         signCount = Number(cred.counter ?? (registrationInfo as any).counter ?? signCount);
         transports = cred.transports ?? (registrationInfo as any).transports ?? [];
       }
     }
 
-    // Case C: fallback — some libs may expose buffers in other fields
-    if (!credentialIDBuf) {
-      if ((registrationInfo as any).rawId) {
-        credentialIDBuf = toBuffer((registrationInfo as any).rawId);
-      } else {
-        // cannot proceed
-        console.error("unable to extract credential id from registrationInfo:", registrationInfo);
-        return NextResponse.json({ ok: false, message: "failed to extract credential id" }, { status: 500 });
-      }
-    }
-    if (!publicKeyBuf) {
-      if ((registrationInfo as any).credentialPublicKey) {
-        publicKeyBuf = toBuffer((registrationInfo as any).credentialPublicKey);
-      } else {
-        console.error("unable to extract publicKey from registrationInfo:", registrationInfo);
-        return NextResponse.json({ ok: false, message: "failed to extract public key" }, { status: 500 });
-      }
+    if (!credentialIDBuf && (registrationInfo as any).rawId) credentialIDBuf = toBuffer((registrationInfo as any).rawId);
+    if (!publicKeyBuf && (registrationInfo as any).credentialPublicKey) publicKeyBuf = toBuffer((registrationInfo as any).credentialPublicKey);
+
+    if (!credentialIDBuf || !publicKeyBuf) {
+      console.error("[register] unable to extract credential/publicKey:", { credentialIDBuf: !!credentialIDBuf, publicKeyBuf: !!publicKeyBuf, registrationInfo });
+      return NextResponse.json({ ok: false, message: "failed to extract credential data" }, { status: 500 });
     }
 
-    // Normalize and store:
-    const credentialIdBase64url = bufferToBase64url(credentialIDBuf);
+    const credentialIdBase64url = bufferToBase64url(credentialIDBuf as Buffer);
     const publicKeyBase64 = publicKeyBuf.toString("base64");
 
-    // Persist into DB
     await prisma.passkey.create({
       data: {
         userId: user.id,
@@ -150,15 +132,12 @@ export async function POST(req: Request) {
       },
     });
 
-    // Clear the one-time challenge
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { verifyToken: null },
-    });
+    await prisma.user.update({ where: { id: user.id }, data: { verifyToken: null } });
 
+    console.log("[register] passkey stored for user", user.id);
     return NextResponse.json({ ok: true, message: "registered" });
   } catch (err: any) {
-    console.error("webauthn register error:", err);
-    return NextResponse.json({ ok: false, message: "server error" }, { status: 500 });
+    console.error("[register] unexpected error:", err && err.stack ? err.stack : err);
+    return NextResponse.json({ ok: false, message: "server error (see server logs)" }, { status: 500 });
   }
 }
