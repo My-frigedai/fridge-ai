@@ -7,9 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate",
-
-    "push": "git add -A && git commit -m \"update\" && git push"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
