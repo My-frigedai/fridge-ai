@@ -43,7 +43,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (mq.removeEventListener) mq.removeEventListener("change", handler);
       else mq.removeListener(handler);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const setTheme = (mode: ThemeMode) => {
