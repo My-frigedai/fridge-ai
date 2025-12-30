@@ -10,7 +10,9 @@ if (!stripeKey) console.error("STRIPE_SECRET_KEY not set");
 if (!priceId) console.error("STRIPE_PRICE_ID not set");
 
 const stripe = stripeKey
-  ? new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" })
+  ? new Stripe(stripeKey, {
+      apiVersion: "2025-12-15.clover",
+    })
   : null;
 
 export async function POST(req: NextRequest) {

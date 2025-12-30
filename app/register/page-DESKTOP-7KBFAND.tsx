@@ -3,19 +3,17 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/app/components/ThemeProvider";
-import { fadeInUp, springTransition, buttonTap } from "@/app/components/motion";
 
 /**
- * Helpers: base64url <-> ArrayBuffer / Uint8Array
+ * small helpers for base64url <-> Uint8Array
  */
 function base64urlToUint8Array(base64url: string) {
-  // convert from base64url to base64
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  // add padding
   const pad = base64.length % 4;
   const base64Padded = base64 + (pad ? "=".repeat(4 - pad) : "");
   const binary = atob(base64Padded);
@@ -30,73 +28,89 @@ function uint8ArrayToBase64url(bytes: ArrayBuffer | Uint8Array) {
   let binary = "";
   for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
   const base64 = btoa(binary);
-  const base64url = base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return base64url;
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/**
- * Convert server-provided registration options into ones consumable by navigator.credentials.create()
- * This is defensive: server might send base64url strings or arrays.
- */
+/** Convert various server-provided shapes into types consumable by navigator.credentials */
+function toUint8Array(input: any): Uint8Array {
+  if (input instanceof Uint8Array) return input;
+  if (input instanceof ArrayBuffer) return new Uint8Array(input);
+  if (Array.isArray(input)) return new Uint8Array(input);
+  if (typeof input === "string") {
+    // try base64url then base64
+    try {
+      return base64urlToUint8Array(input);
+    } catch (e) {
+      // try atob on normal base64
+      const pad = input.length % 4;
+      const base64Padded = pad ? input + "=".repeat(4 - pad) : input;
+      const bin = atob(base64Padded);
+      const u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      return u;
+    }
+  }
+  throw new Error("Unsupported input for toUint8Array");
+}
+
+/** convert server publicKey/options -> navigator-friendly */
 function preformatCreateOptions(opts: any) {
-  const publicKey: any = { ...opts };
+  if (!opts) throw new Error("No options provided");
+  const publicKeyObj = opts.publicKey ? { ...opts.publicKey } : { ...opts };
 
-  if (publicKey.challenge) {
-    if (typeof publicKey.challenge === "string") {
-      publicKey.challenge = base64urlToUint8Array(publicKey.challenge);
-    } else if (Array.isArray(publicKey.challenge)) {
-      publicKey.challenge = new Uint8Array(publicKey.challenge);
-    }
+  // challenge
+  if (!("challenge" in publicKeyObj))
+    throw new Error("Registration options missing 'challenge'");
+  publicKeyObj.challenge = toUint8Array(publicKeyObj.challenge);
+
+  // user.id (optional but helpful)
+  if (publicKeyObj.user && publicKeyObj.user.id != null) {
+    publicKeyObj.user.id = toUint8Array(publicKeyObj.user.id);
   }
 
-  if (publicKey.user && publicKey.user.id) {
-    if (typeof publicKey.user.id === "string") {
-      publicKey.user.id = base64urlToUint8Array(publicKey.user.id);
-    } else if (Array.isArray(publicKey.user.id)) {
-      publicKey.user.id = new Uint8Array(publicKey.user.id);
-    }
-  }
-
-  if (
-    publicKey.excludeCredentials &&
-    Array.isArray(publicKey.excludeCredentials)
-  ) {
-    publicKey.excludeCredentials = publicKey.excludeCredentials.map(
+  // excludeCredentials
+  if (Array.isArray(publicKeyObj.excludeCredentials)) {
+    publicKeyObj.excludeCredentials = publicKeyObj.excludeCredentials.map(
       (c: any) => {
         const out: any = { ...c };
-        if (typeof out.id === "string") out.id = base64urlToUint8Array(out.id);
-        else if (Array.isArray(out.id)) out.id = new Uint8Array(out.id);
+        if (out.id != null) out.id = toUint8Array(out.id);
         return out;
       },
     );
   }
 
-  return publicKey;
+  return publicKeyObj;
 }
 
-/**
- * Serialize the created credential for sending to server
- */
+/** serialize attestation for server */
 function serializeAttestation(credential: any) {
+  if (!credential) throw new Error("No credential to serialize");
+  const rawId = credential.rawId ?? credential.id;
   return {
     id: credential.id,
-    rawId: uint8ArrayToBase64url(credential.rawId),
+    rawId: uint8ArrayToBase64url(rawId),
     type: credential.type,
     response: {
       attestationObject: uint8ArrayToBase64url(
-        credential.response.attestationObject,
+        credential.response?.attestationObject,
       ),
-      clientDataJSON: uint8ArrayToBase64url(credential.response.clientDataJSON),
+      clientDataJSON: uint8ArrayToBase64url(
+        credential.response?.clientDataJSON,
+      ),
     },
-    // transports might be present on a client authenticatorAttestationResponse but is optional
   };
 }
 
+/** Minimal motion helpers to avoid TypeScript transition typing trouble */
+const buttonTap = {
+  whileTap: { scale: 0.995 } as any,
+  whileHover: { scale: 1.01 } as any,
+};
+const springTransition = { type: "spring", stiffness: 700, damping: 30 } as any;
+
 export default function RegisterPage() {
   const router = useRouter();
+
   const [step, setStep] = useState<"select" | "email" | "passkey">("select");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -116,7 +130,6 @@ export default function RegisterPage() {
     setIsDark(applied ? applied === "dark" : theme === "dark");
   }, [theme]);
 
-  // 1) Save password first (so credentials provider has a fallback)
   async function savePassword() {
     const res = await fetch("/api/auth/set-password", {
       method: "POST",
@@ -130,7 +143,6 @@ export default function RegisterPage() {
     return true;
   }
 
-  // 2) Start WebAuthn registration by requesting options from server
   async function getRegistrationOptions() {
     const res = await fetch("/api/auth/webauthn/register-options", {
       method: "POST",
@@ -139,12 +151,12 @@ export default function RegisterPage() {
     });
     const j = await res.json();
     if (!res.ok || !j?.ok) {
+      // bubble server message if present
       throw new Error(j?.message || "Failed to get registration options");
     }
     return j.options;
   }
 
-  // 3) Submit attestation to server
   async function sendAttestation(attObj: any) {
     const res = await fetch("/api/auth/webauthn/register", {
       method: "POST",
@@ -161,19 +173,14 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
-
     if (!email || !password)
       return setMsg("メールアドレスとパスワードは必須です。");
     if (password.length < 8)
       return setMsg("パスワードは8文字以上にしてください。");
     if (password !== confirm) return setMsg("パスワードが一致しません。");
-
     setLoading(true);
     try {
-      // 1) Persist password (create or update user)
       await savePassword();
-
-      // Move to passkey creation step
       setStep("passkey");
     } catch (err: any) {
       console.error("savePassword error:", err);
@@ -186,80 +193,94 @@ export default function RegisterPage() {
   const handlePasskeyRegister = async () => {
     setMsg(null);
     setLoading(true);
-
     try {
-      // 1) Request registration options (server will create minimal user if needed)
       const opts = await getRegistrationOptions();
+      console.log("webauthn: server register-options (raw):", opts);
+
       const publicKey = preformatCreateOptions(opts);
 
-      // 2) navigator.credentials.create
+      console.log("webauthn: prepared publicKey (summary):", {
+        challengeType: Object.prototype.toString.call(publicKey.challenge),
+        userIdType: publicKey.user
+          ? Object.prototype.toString.call(publicKey.user.id)
+          : undefined,
+        excludeCredentials: Array.isArray(publicKey.excludeCredentials)
+          ? publicKey.excludeCredentials.map((c: any) =>
+              Object.prototype.toString.call(c.id),
+            )
+          : undefined,
+      });
+
       const credential: any = (await navigator.credentials.create({
         publicKey,
       })) as any;
-      if (!credential) throw new Error("No credential created");
+      if (!credential)
+        throw new Error(
+          "No credential created or operation was cancelled by user",
+        );
 
-      // 3) serialize and send to server for verification/storage
       const serialized = serializeAttestation(credential);
+      console.log("webauthn: serialized attestation:", {
+        id: serialized.id,
+        rawIdLength: serialized.rawId?.length,
+      });
+
       await sendAttestation(serialized);
 
-      // 4) Registration success -> auto sign-in via credentials (we saved password earlier)
       const signInResult = await signIn("credentials", {
         redirect: false,
         email,
         password,
       });
-
       if ((signInResult as any)?.ok) {
         router.push("/");
       } else {
-        // fallback redirect to login with registered flag
         router.push("/login?registered=1");
       }
     } catch (err: any) {
       console.error("passkey register error:", err);
-      setMsg(err?.message || "パスキー登録に失敗しました。");
+      const message =
+        err?.message && err.message.includes("Invalid")
+          ? "サーバーから不正なデータが返されました（詳しくはコンソール）。"
+          : err?.message ||
+            "パスキー登録に失敗しました。ブラウザの設定やセキュリティキーの状態を確認してください。";
+      setMsg(message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogle = async () => {
-    setLoading(true);
     try {
-      const res = await signIn("google", { callbackUrl: "/", redirect: false });
-      if (!(res as any)?.ok) setMsg("Google認証に失敗しました。");
+      await signIn("google", { callbackUrl: "/" });
     } catch (err) {
-      console.error(err);
-      setMsg("Google認証中にエラーが発生しました。");
-    } finally {
-      setLoading(false);
+      console.error("Google signIn error:", err);
+      setMsg("外部プロバイダでの認証に失敗しました。");
     }
   };
 
   const handleApple = () => {
-    // Apple is planned: keep button but disabled in actual UI (we also leave this noop)
     alert("Appleでの登録は今後実装予定です");
   };
 
   return (
     <motion.div
-      className="min-h-screen flex items-center justify-start pt-12 pb-8 transition-colors duration-300"
+      className="min-h-screen flex items-center justify-start pt-12 pb-8"
       initial="hidden"
       animate="show"
-      variants={fadeInUp}
     >
       <div className="w-full max-w-md h-screen mx-auto flex flex-col justify-between items-center -translate-y-6 p-6">
         <div className="flex flex-col items-center gap-2">
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
+            transition={{ duration: 0.45 } as any}
           >
             <Image
               src={
                 isDark ? "/my-fridgeai-logo-white.png" : "/my-fridgeai-logo.png"
               }
-              alt="My-fridgeai"
+              alt="My-FridgeAI"
               width={180}
               height={52}
               priority
@@ -270,7 +291,7 @@ export default function RegisterPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="mt-1"
-            transition={{ duration: 0.45, delay: 0.08 }}
+            transition={{ duration: 0.45, delay: 0.08 } as any}
           >
             <Image
               src={
@@ -299,9 +320,9 @@ export default function RegisterPage() {
               <motion.button
                 onClick={() => setStep("email")}
                 disabled={loading}
-                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
+                className="w-full surface-btn font-semibold py-3 rounded-full"
+                whileTap={buttonTap.whileTap as any}
+                whileHover={buttonTap.whileHover as any}
                 transition={springTransition}
               >
                 メールアドレスで新規登録
@@ -309,12 +330,12 @@ export default function RegisterPage() {
 
               <motion.button
                 onClick={handleGoogle}
-                disabled={loading}
-                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
+                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2"
+                whileTap={buttonTap.whileTap as any}
+                whileHover={buttonTap.whileHover as any}
                 transition={springTransition}
               >
+                {/* Google SVG */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 533.5 544.3"
@@ -345,11 +366,12 @@ export default function RegisterPage() {
               <motion.button
                 onClick={handleApple}
                 disabled
-                className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition transform duration-150 ease-out"
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
+                className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2 disabled:opacity-60"
+                whileTap={buttonTap.whileTap as any}
+                whileHover={buttonTap.whileHover as any}
                 transition={springTransition}
               >
+                {/* Apple icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 384 512"
@@ -364,22 +386,22 @@ export default function RegisterPage() {
               </motion.button>
 
               <p className="text-xs text-center text-secondary mt-2">
-                続行すると、
-                <a href="/terms" className="underline ml-1 text-primary">
+                続行すると
+                <Link className="underline ml-1 text-primary" href="/terms">
                   利用規約
-                </a>
+                </Link>
                 と
-                <a href="/privacy" className="underline ml-1 text-primary">
+                <Link className="underline ml-1 text-primary" href="/privacy">
                   プライバシーポリシー
-                </a>
+                </Link>
                 に同意したことになります。
               </p>
 
               <p className="text-xs text-center text-muted mt-2">
                 すでにアカウントをお持ちですか？
-                <a href="/login" className="underline ml-1 text-primary">
+                <Link className="underline ml-1 text-primary" href="/login">
                   ログイン
-                </a>
+                </Link>
               </p>
             </div>
           ) : step === "email" ? (
@@ -418,11 +440,11 @@ export default function RegisterPage() {
               {msg && <div className="text-sm text-red-600">{msg}</div>}
 
               <motion.button
-                className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60"
+                className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
                 type="submit"
                 disabled={loading}
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
+                whileTap={buttonTap.whileTap as any}
+                whileHover={buttonTap.whileHover as any}
                 transition={springTransition}
               >
                 {loading ? "次へ…" : "パスキーで登録"}
@@ -438,7 +460,6 @@ export default function RegisterPage() {
               </button>
             </form>
           ) : (
-            // passkey step
             <div className="flex flex-col gap-3">
               <p className="text-sm text-secondary">
                 パスキーを作成してアカウント登録を完了します。
@@ -449,10 +470,9 @@ export default function RegisterPage() {
                 className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
                 onClick={handlePasskeyRegister}
                 disabled={loading}
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
+                whileTap={buttonTap.whileTap as any}
+                whileHover={buttonTap.whileHover as any}
                 transition={springTransition}
-                style={{ color: "var(--color-passkey-text)" }}
               >
                 {loading ? "登録中…" : "パスキーを作成"}
               </motion.button>

@@ -1,4 +1,4 @@
-// app/login/LoginClient.tsx
+// app/login/LoginClient/tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -56,7 +56,7 @@ export default function LoginClient() {
   const search = useSearchParams();
   const registered = search?.get ? search.get("registered") : null;
 
-  const [step, setStep] = useState<"select" | "email">("select");
+  const [step, setStep] = useState<"select" | "choose" | "email">("select");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(
@@ -83,7 +83,6 @@ export default function LoginClient() {
     setLoading(true);
 
     try {
-      // request options from your server
       const startRes = await fetch("/api/auth/webauthn/authenticate-options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,7 +95,6 @@ export default function LoginClient() {
         return;
       }
 
-      // format into publicKey for navigator.credentials.get
       const publicKey = preformatRequestOptions(startJson.options);
 
       const assertion: any = (await navigator.credentials.get({
@@ -104,7 +102,6 @@ export default function LoginClient() {
       })) as any;
       if (!assertion) throw new Error("No assertion obtained");
 
-      // serialize assertion
       const authData = {
         id: assertion.id,
         rawId: uint8ArrayToBase64url(assertion.rawId),
@@ -123,7 +120,6 @@ export default function LoginClient() {
         },
       };
 
-      // send to server for verification
       const verifyRes = await fetch("/api/auth/webauthn/authenticate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,16 +127,31 @@ export default function LoginClient() {
       });
 
       const verifyJson = await verifyRes.json();
-      if (!verifyRes.ok || !verifyJson.ok) {
+      if (!verifyRes.ok || !verifyJson?.ok) {
         setMsg(verifyJson?.message || "パスキー認証に失敗しました。");
         setLoading(false);
         return;
       }
 
-      // Server returned success — in your current backend code it returns userId.
-      // The server side should create a session (or you can signIn with credentials fallback).
-      // Here we follow your existing pattern: redirect to home after success.
-      router.push("/");
+      // server returns one-time token
+      const token = verifyJson.token;
+      if (!token) {
+        setMsg("サーバがトークンを返しませんでした。");
+        setLoading(false);
+        return;
+      }
+
+      // sign in via NextAuth credentials provider using token
+      const signInResult: any = await signIn("credentials", {
+        redirect: false,
+        token,
+      });
+
+      if (signInResult?.ok) {
+        router.push("/");
+      } else {
+        setMsg("サーバとの連携に失敗しました（セッションを作成できません）。");
+      }
     } catch (err: any) {
       console.error("passkey login error:", err);
       setMsg(err?.message || "パスキーでのログイン処理に失敗しました。");
@@ -150,7 +161,7 @@ export default function LoginClient() {
   };
 
   // --------------------------
-  // 🔑 メール + パスワードログイン
+  // 🔑 メールアドレス + パスワードログイン
   // --------------------------
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,23 +170,9 @@ export default function LoginClient() {
     if (!email) return setMsg("メールアドレスを入力してください");
     if (!password) return setMsg("パスワードを入力してください");
 
-    // パスワードポリシー強化チェック
-    const pwd = password;
-    const tooShort = pwd.length < 12;
-    const noUpper = !/[A-Z]/.test(pwd);
-    const noLower = !/[a-z]/.test(pwd);
-    const noNum = !/[0-9]/.test(pwd);
-
-    if (tooShort || noUpper || noLower || noNum) {
-      setMsg(
-        "パスワードは12文字以上・大文字/小文字/数字を含む必要があります。",
-      );
-      return;
-    }
-
     setLoading(true);
     try {
-      const res = await signIn("credentials", {
+      const res: any = await signIn("credentials", {
         redirect: false,
         email,
         password,
@@ -195,17 +192,13 @@ export default function LoginClient() {
   };
 
   const handleGoogle = async () => {
-    setLoading(true);
+    // Use default redirect-based signIn to ensure OAuth flow works reliably.
+    // This will navigate away to Google's consent page and back via NextAuth callbacks.
     try {
-      const res = await signIn("google", { callbackUrl: "/", redirect: false });
-      if (!(res as any)?.ok) {
-        setMsg("外部プロバイダでの認証に失敗しました。");
-      }
+      await signIn("google", { callbackUrl: "/" });
     } catch (err) {
       console.error("Google signIn error:", err);
       setMsg("外部プロバイダでの認証に失敗しました。");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -233,7 +226,6 @@ export default function LoginClient() {
             height={52}
             priority
           />
-
           <Image
             src={
               isDark
@@ -245,7 +237,6 @@ export default function LoginClient() {
             height={130}
             priority
           />
-
           <h2 className="mt-2 text-center text-lg font-semibold text-primary">
             Welcome to My-FridgeAI
           </h2>
@@ -258,9 +249,8 @@ export default function LoginClient() {
         <div className="w-full">
           {step === "select" ? (
             <div className="flex flex-col gap-3">
-              {/* メールアドレス / パスキー選択 */}
               <motion.button
-                onClick={() => setStep("email")}
+                onClick={() => setStep("choose")}
                 className="w-full surface-btn font-semibold py-3 rounded-full border"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
@@ -269,7 +259,6 @@ export default function LoginClient() {
                 メールアドレス / パスキーでログイン
               </motion.button>
 
-              {/* Googleログイン (残す) */}
               <motion.button
                 onClick={handleGoogle}
                 className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2"
@@ -277,6 +266,7 @@ export default function LoginClient() {
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
+                {/* Google SVG */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 533.5 544.3"
@@ -304,7 +294,6 @@ export default function LoginClient() {
                 Googleでログイン
               </motion.button>
 
-              {/* Apple (残すが disabled) */}
               <motion.button
                 onClick={() => {}}
                 disabled
@@ -313,6 +302,7 @@ export default function LoginClient() {
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
+                {/* Apple icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 384 512"
@@ -345,10 +335,39 @@ export default function LoginClient() {
                 </Link>
               </p>
             </div>
+          ) : step === "choose" ? (
+            <div className="flex flex-col gap-3">
+              <motion.button
+                onClick={handlePasskeyLogin}
+                disabled={loading}
+                className="w-full surface-btn font-semibold py-3 rounded-full border"
+                whileTap={buttonTap.whileTap}
+                whileHover={buttonTap.whileHover}
+                transition={springTransition}
+              >
+                パスキーでログイン
+              </motion.button>
+
+              <motion.button
+                onClick={() => setStep("email")}
+                className="w-full surface-btn font-semibold py-3 rounded-full border"
+                whileTap={buttonTap.whileTap}
+                whileHover={buttonTap.whileHover}
+                transition={springTransition}
+              >
+                メールアドレスでログイン
+              </motion.button>
+
+              <button
+                type="button"
+                className="w-full mt-2 text-center text-sm underline"
+                onClick={() => setStep("select")}
+              >
+                ← 戻る
+              </button>
+            </div>
           ) : (
-            // -------------------------
-            // メール & パスキー画面
-            // -------------------------
+            // email login form
             <form
               onSubmit={handlePasswordLogin}
               className="flex flex-col gap-3"
@@ -374,22 +393,8 @@ export default function LoginClient() {
                 required
               />
 
-              {/* パスキーでログイン（色は CSS 変数に任せる） */}
-              <motion.button
-                type="button"
-                onClick={handlePasskeyLogin}
-                className="w-full bg-white border rounded-full py-3 text-sm"
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
-                transition={springTransition}
-                style={{ color: "var(--color-passkey-text)" }}
-              >
-                パスキーでログイン
-              </motion.button>
-
               {msg && <div className="text-sm text-red-600">{msg}</div>}
 
-              {/* 通常ログイン */}
               <motion.button
                 type="submit"
                 className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
@@ -398,7 +403,7 @@ export default function LoginClient() {
                 transition={springTransition}
                 disabled={loading}
               >
-                {loading ? "確認中…" : "パスワードでログイン"}
+                {loading ? "確認中…" : "メールアドレスでログイン"}
               </motion.button>
 
               <div className="flex items-center justify-between mt-2">
@@ -426,4 +431,190 @@ export default function LoginClient() {
       </div>
     </motion.div>
   );
+}
+
+// app/api/auth/webauthn/register-options/route.ts
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { generateRegistrationOptions } from "@simplewebauthn/server";
+
+/** Helpers -------------------------------------------------------- */
+
+// to Buffer safely from many inputs
+function toBuffer(input: unknown): Buffer {
+  if (Buffer.isBuffer(input)) return input;
+  if (typeof input === "string") {
+    // assume it's base64 or base64url or plain id string:
+    // if contains '-' or '_' treat as base64url -> convert to base64 first
+    if (/[+-_]/.test(input) && /[_-]/.test(input)) {
+      // base64url -> base64
+      const b64 = (input as string).replace(/-/g, "+").replace(/_/g, "/");
+      const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+      return Buffer.from(b64 + pad, "base64");
+    }
+    // otherwise assume it's base64 already
+    try {
+      return Buffer.from(input as string, "base64");
+    } catch {
+      // fallback: encode as utf8 string buffer
+      return Buffer.from(String(input), "utf8");
+    }
+  }
+  if (input instanceof ArrayBuffer) return Buffer.from(new Uint8Array(input));
+  if (ArrayBuffer.isView(input))
+    return Buffer.from(input as ArrayBufferView as any);
+  throw new Error("Unsupported input type for toBuffer");
+}
+
+// buffer -> base64url (no padding)
+function bufferToBase64url(buf: Buffer): string {
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+// normalize credentialId-like value -> base64url string (safe)
+function normalizeToBase64urlString(v: unknown): string {
+  if (typeof v === "string") {
+    // if already base64url (contains '-' or '_') return as-is
+    if (v.includes("-") || v.includes("_")) return v;
+    // if looks like base64, convert to base64url
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(v)) {
+      return (v as string)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+    }
+    // otherwise, return raw string (best-effort)
+    return v;
+  }
+  // Buffer/ArrayBuffer/Uint8Array -> base64url
+  const buf = toBuffer(v);
+  return bufferToBase64url(buf);
+}
+
+/** Config --------------------------------------------------------- */
+const rpName = "My-FridgeAI";
+const rpID =
+  process.env.NEXT_PUBLIC_BASE_URL?.replace(/^https?:\/\//, "") || "localhost";
+
+/** Route ---------------------------------------------------------- */
+export async function POST(req: Request) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { email: rawEmail, name } = body ?? {};
+    if (!rawEmail)
+      return NextResponse.json(
+        { ok: false, message: "email required" },
+        { status: 400 },
+      );
+    const email = String(rawEmail).toLowerCase().trim();
+
+    // ensure user exists
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name ? String(name) : undefined,
+          status: "active",
+        },
+      });
+    }
+
+    // Build excludeCredentials as base64url strings (library/runtime accepts strings safely)
+    const existingPasskeys = await prisma.passkey.findMany({
+      where: { userId: user.id },
+    });
+    const excludeCredentials = existingPasskeys.map((pk) => ({
+      id: normalizeToBase64urlString(pk.credentialId), // string (base64url)
+      type: "public-key" as const,
+      transports: pk.transports ? JSON.parse(pk.transports) : undefined,
+    }));
+
+    // userID: use string form (user.id). We'll pass as string (base64url-like if you prefer)
+    // This avoids the Uint8Array vs ArrayBuffer generic mismatch on some type defs.
+    const userIdForOptions = String(user.id);
+
+    // Build options object (we cast to any when calling generateRegistrationOptions
+    // to avoid brittle TS mismatches across simplewebauthn versions).
+    const optsPayload = {
+      rpName,
+      rpID,
+      userID: userIdForOptions,
+      userName: email,
+      timeout: 60000,
+      attestationType: "none",
+      authenticatorSelection: {
+        userVerification: "preferred",
+      },
+      excludeCredentials: excludeCredentials.length
+        ? excludeCredentials
+        : undefined,
+    };
+
+    // Call the library — cast to any to avoid type-level mismatches across versions.
+    // At runtime the library expects IDs/challenge as base64/base64url strings or Uint8Arrays;
+    // we supply strings (base64url) which are safe and JSON-serializable for the client.
+    const opts = (generateRegistrationOptions as any)(optsPayload);
+
+    // Ensure challenge is a string (if lib gives Uint8Array, convert)
+    let challengeStr: string;
+    if (typeof opts.challenge === "string") {
+      challengeStr = opts.challenge;
+    } else if (
+      opts.challenge instanceof Uint8Array ||
+      opts.challenge instanceof ArrayBuffer
+    ) {
+      const buf = toBuffer(opts.challenge);
+      challengeStr = bufferToBase64url(buf);
+    } else {
+      // fallback stringify
+      challengeStr = String(opts.challenge);
+    }
+
+    // persist challenge (one-time) as base64url string
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verifyToken: challengeStr },
+    });
+
+    // Return options to client, but ensure binary fields are strings so JSON is safe.
+    const jsonSafeOpts: any = { ...opts, challenge: challengeStr };
+    if (
+      jsonSafeOpts.user &&
+      (jsonSafeOpts.user.id instanceof Uint8Array ||
+        jsonSafeOpts.user.id instanceof ArrayBuffer)
+    ) {
+      jsonSafeOpts.user = {
+        ...jsonSafeOpts.user,
+        id: bufferToBase64url(toBuffer(jsonSafeOpts.user.id)),
+      };
+    } else if (jsonSafeOpts.user && typeof jsonSafeOpts.user.id === "string") {
+      // leave as-is
+    }
+
+    if (Array.isArray(jsonSafeOpts.excludeCredentials)) {
+      jsonSafeOpts.excludeCredentials = jsonSafeOpts.excludeCredentials.map(
+        (c: any) => {
+          let id = c.id;
+          if (id instanceof Uint8Array || id instanceof ArrayBuffer)
+            id = bufferToBase64url(toBuffer(id));
+          // ensure final id is a string (base64url)
+          id = normalizeToBase64urlString(id);
+          return { ...c, id };
+        },
+      );
+    }
+
+    return NextResponse.json({ ok: true, options: jsonSafeOpts });
+  } catch (err: any) {
+    console.error("webauthn register-options error:", err);
+    return NextResponse.json(
+      { ok: false, message: "server error" },
+      { status: 500 },
+    );
+  }
 }

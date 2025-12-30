@@ -87,7 +87,7 @@ model Menu {
   difficulty  String?
   time        String?
   tips        String?
-  ingredients Json?
+  ingredients String?
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -106,11 +106,9 @@ model UsageHistory {
   userId String
   date   DateTime @default(now())
   action String
-  meta   Json?
+  meta   String?
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-/* Otp model removed on purpose (email OTP flow is deprecated) */
 
 model PasswordReset {
   id        String   @id @default(cuid())
