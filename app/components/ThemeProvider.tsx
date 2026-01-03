@@ -6,16 +6,16 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 type ThemeMode = "system" | "light" | "dark";
 
 type ThemeContextValue = {
-  theme: ThemeMode;
+  theme: "light" | "dark";
+  rawTheme: ThemeMode;
   setTheme: (t: ThemeMode) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>("system");
-
-  // apply theme to <html data-theme="...">
+  const [rawTheme, setRawTheme] = useState<ThemeMode>("system");
+  const [theme, setThemeState] = useState<"light" | "dark">("light");
   const applyTheme = (mode: ThemeMode) => {
     const root = document.documentElement;
     if (mode === "system") {
@@ -31,17 +31,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const saved =
       (localStorage.getItem("theme") as ThemeMode | null) || "system";
-    setThemeState(saved);
+    setRawTheme(saved);
+
+    const getEffectiveTheme = (mode: ThemeMode): "light" | "dark" => {
+      if (mode === "system") {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      }
+      return mode;
+    };
+
+    setThemeState(getEffectiveTheme(saved));
     applyTheme(saved);
 
-    // watch OS change if system mode
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
-      if (saved === "system") applyTheme("system");
+      if (saved === "system") setThemeState(getEffectiveTheme("system"));
     };
-    // modern API
     if (mq.addEventListener) mq.addEventListener("change", handler);
     else mq.addListener(handler);
+
     return () => {
       if (mq.removeEventListener) mq.removeEventListener("change", handler);
       else mq.removeListener(handler);
@@ -49,13 +59,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setTheme = (mode: ThemeMode) => {
-    setThemeState(mode);
+    setRawTheme(mode);
     localStorage.setItem("theme", mode);
+    const getEffectiveTheme = (mode: ThemeMode): "light" | "dark" => {
+      if (mode === "system") {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      }
+      return mode;
+    };
+    setThemeState(getEffectiveTheme(mode));
     applyTheme(mode);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, rawTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

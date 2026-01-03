@@ -86,10 +86,6 @@ function serializeAssertion(assertion: any) {
   };
 }
 
-/* -----------------------
-   Component
-   ----------------------- */
-
 export default function LoginClient() {
   const router = useRouter();
   const search = useSearchParams();

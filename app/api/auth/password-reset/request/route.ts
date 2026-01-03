@@ -1,6 +1,6 @@
 // app/api/auth/password-reset/request/route.ts
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
