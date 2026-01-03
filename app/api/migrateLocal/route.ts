@@ -1,7 +1,7 @@
 // app/api/migrateLocal/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
             unit: it.unit || "個",
             expiry,
             category: it.category || "その他",
-          },
+          } as any,
         });
+
         created.push(rec);
       } catch (e) {
         console.error("migrate item failed:", e, it);
