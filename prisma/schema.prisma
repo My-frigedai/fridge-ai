@@ -8,29 +8,30 @@ datasource db {
 }
 
 model User {
-  id             String            @id @default(cuid())
-  name           String?
-  email          String?           @unique
-  emailVerified  DateTime?
-  image          String?
-  password       String?
-  createdAt      DateTime          @default(now())
-  accounts       Account[]
-  favorites      Favorite[]
-  ingredients    Ingredient[]
-  menus          Menu[]
-  sessions       Session[]
-  usageHistories UsageHistory[]
-  status         String?           @default("active")
-  verifyToken    String?           @unique    // used as temp challenge storage
-  verifyCode     String?
-  verifyExpires  DateTime?
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  status        String?   @default("active")
+  verifyToken   String?   @unique
+  verifyCode    String?
+  verifyExpires DateTime?
 
-  // auth related
-  passwordResets    PasswordReset[]
-  emailVerifications EmailVerification[]
-  trustedDevices     TrustedDevice[]
-  passkeys           Passkey[]
+  accounts          Account[]
+  EmailVerification EmailVerification[]
+  Favorite          Favorite[]
+  Ingredient        Ingredient[]
+  Menu              Menu[]
+  passkeys          Passkey[]
+  PasswordReset     PasswordReset[]
+  sessions          Session[]
+  TrustedDevice     TrustedDevice[]
+  UsageHistory      UsageHistory[]
+
+  AuthChallenges AuthChallenge[]
 }
 
 model Account {
@@ -67,60 +68,34 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Ingredient {
-  id        String    @id @default(cuid())
-  userId    String
-  name      String
-  quantity  Float     @default(0)
-  unit      String?
-  expiry    DateTime?
-  category  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Menu {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  difficulty  String?
-  time        String?
-  tips        String?
-  ingredients Json?
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Favorite {
-  id        String   @id @default(cuid())
-  userId    String
-  menuId    String?
-  title     String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model UsageHistory {
-  id     String   @id @default(cuid())
-  userId String
-  date   DateTime @default(now())
-  action String
-  meta   Json?
-  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-/* Otp model removed on purpose (email OTP flow is deprecated) */
-
-model PasswordReset {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
+/**
+ * WebAuthn passkey representation
+ */
+model Passkey {
+  id           String   @id @default(cuid())
+  userId       String
+  credentialId String   @unique
+  publicKey    String
+  signCount    Int
+  transports   String?
+  name         String?
+  createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * Short-lived stored challenges for webauthn (authenticate without email flow)
+ */
+model AuthChallenge {
+  id        String    @id @default(cuid())
+  challenge String    @unique
+  userId    String? 
+  used      Boolean   @default(false)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailVerification {
@@ -135,29 +110,74 @@ model EmailVerification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model TrustedDevice {
+model PasswordReset {
   id        String   @id @default(cuid())
   userId    String
-  tokenHash String
-  deviceInfo String?
-  createdAt DateTime @default(now())
-  lastUsed  DateTime @default(now())
+  tokenHash String   @unique
   expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TrustedDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String
+  deviceInfo String?
+  createdAt  DateTime @default(now())
+  lastUsed   DateTime @default(now())
+  expiresAt  DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tokenHash])
 }
 
-model Passkey {
-  id            String   @id @default(cuid())
-  userId        String
-  credentialId  String   @unique
-  publicKey     String
-  signCount     Int
-  transports    String?
-  name          String?
-  createdAt     DateTime @default(now())
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  menuId    String?
+  title     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Ingredient {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  quantity  Float     @default(0)
+  unit      String?
+  expiry    DateTime?
+  category  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Menu {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  difficulty  String?
+  time        String?
+  tips        String?
+  ingredients Json?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UsageHistory {
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime @default(now())
+  action String
+  meta   Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

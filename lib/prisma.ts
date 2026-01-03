@@ -1,28 +1,21 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
-console.log("🗂 Using DATABASE_URL:", process.env.DATABASE_URL); // デバッグ用
-
-const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ["query", "error", "warn"],
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
-
-async function initPrisma() {
-  try {
-    await prisma.$connect();
-    console.log("✅ Prisma Client connected");
-  } catch (err) {
-    console.error("❌ Failed to connect Prisma Client:", err);
-  }
-}
-initPrisma();
 
 export default prisma;

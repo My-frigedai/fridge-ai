@@ -1,94 +1,112 @@
 // app/api/auth/webauthn/authenticate-options/route.ts
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
+import { getWebAuthnRP } from "@/lib/webauthnRP";
+import type { Passkey } from "@prisma/client";
+
+/** helpers */
+function bufferToBase64url(buf: Buffer | Uint8Array | ArrayBuffer) {
+  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any);
+  return b
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { email: rawEmail } = body ?? {};
-    if (!rawEmail)
+    const { email } = body ?? {};
+    if (!email || typeof email !== "string") {
       return NextResponse.json(
         { ok: false, message: "email required" },
         { status: 400 },
       );
-    const email = String(rawEmail).toLowerCase().trim();
+    }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user)
+    const emailLower = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({ where: { email: emailLower } });
+    if (!user) {
       return NextResponse.json(
         { ok: false, message: "no such user" },
         { status: 404 },
       );
+    }
 
-    const passkeys = await prisma.passkey.findMany({
+    const passkeys: Passkey[] = await prisma.passkey.findMany({
       where: { userId: user.id },
     });
-    if (!passkeys || passkeys.length === 0)
+    if (passkeys.length === 0) {
       return NextResponse.json(
         { ok: false, message: "no passkeys" },
         { status: 400 },
       );
-
-    const ORIGIN = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!ORIGIN) {
-      console.error("Missing NEXT_PUBLIC_BASE_URL");
-      return NextResponse.json(
-        { ok: false, message: "server misconfiguration" },
-        { status: 500 },
-      );
-    }
-    let rpID: string;
-    try {
-      rpID = new URL(ORIGIN).host;
-    } catch {
-      console.error("Invalid NEXT_PUBLIC_BASE_URL:", ORIGIN);
-      return NextResponse.json(
-        { ok: false, message: "server misconfiguration" },
-        { status: 500 },
-      );
     }
 
-    // allowCredentials — ensure id values are base64url strings (they are stored as such)
-    const allowCredentials = passkeys.map((pk) => ({
-      id: String(pk.credentialId),
+    const { rpID } = getWebAuthnRP();
+
+    // Build allowCredentials (we keep credentialId as stored: assumed base64url)
+    const allowedCredentials = passkeys.map((pk) => ({
+      id: pk.credentialId, // base64url string expected in DB
       type: "public-key" as const,
       transports: pk.transports ? JSON.parse(pk.transports) : undefined,
     }));
 
     const opts = await generateAuthenticationOptions({
-      rpID,
       timeout: 60000,
-      allowCredentials,
+      rpID,
+      allowCredentials: allowedCredentials,
       userVerification: "preferred",
-    } as any);
+    });
 
-    if (!opts || !opts.challenge) {
-      console.error("generateAuthenticationOptions returned invalid:", opts);
+    if (!opts?.challenge) {
+      console.error("[authenticate-options] no challenge generated:", opts);
       return NextResponse.json(
         { ok: false, message: "challenge generation failed" },
         { status: 500 },
       );
     }
 
-    // store challenge
+    // Normalize challenge -> base64url string
+    const challengeStr =
+      typeof opts.challenge === "string"
+        ? opts.challenge
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "")
+        : bufferToBase64url(opts.challenge as any);
+
+    // store challenge and short expiry on user (so subsequent authenticate verifies it)
+    const expires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
     await prisma.user.update({
       where: { id: user.id },
-      data: { verifyToken: String(opts.challenge) },
+      data: { verifyToken: challengeStr, verifyExpires: expires },
     });
 
-    // return options directly; ensure allowCredentials ids are strings
-    const jsonSafe = { ...opts };
-    if (Array.isArray(jsonSafe.allowCredentials))
-      jsonSafe.allowCredentials = jsonSafe.allowCredentials.map((c: any) => ({
-        ...c,
-        id: String(c.id),
-      }));
-    if (!jsonSafe.rpId && rpID) jsonSafe.rpId = rpID;
+    // Build JSON-safe options (ensure string ids)
+    const jsonSafeOpts: any = { ...opts, challenge: challengeStr };
+    if (Array.isArray(jsonSafeOpts.allowCredentials)) {
+      jsonSafeOpts.allowCredentials = jsonSafeOpts.allowCredentials.map(
+        (c: any) => ({
+          ...c,
+          id:
+            typeof c.id === "string"
+              ? c.id.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+              : bufferToBase64url(c.id),
+        }),
+      );
+    }
 
-    return NextResponse.json({ ok: true, options: jsonSafe });
+    if (!jsonSafeOpts.rpId && rpID) jsonSafeOpts.rpId = rpID;
+
+    return NextResponse.json(
+      { ok: true, options: jsonSafeOpts },
+      { status: 200 },
+    );
   } catch (err: any) {
-    console.error("webauthn authenticate-options error:", err);
+    console.error("[authenticate-options] error:", err);
     return NextResponse.json(
       { ok: false, message: "server error" },
       { status: 500 },

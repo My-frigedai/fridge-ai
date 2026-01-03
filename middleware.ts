@@ -4,37 +4,76 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-
   const { pathname } = req.nextUrl;
 
-  // ✅ 静的ファイルやNext.js内部リソースは除外
+  /* =========================
+     1. 完全に除外するパス
+  ========================= */
+
+  // NextAuth（最重要）
+  if (pathname.startsWith("/api/auth")) {
+    return NextResponse.next();
+  }
+
+  // Next.js 内部・静的アセット
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
-    pathname.startsWith("/api") ||
-    pathname.endsWith(".png") ||
-    pathname.endsWith(".jpg") ||
-    pathname.endsWith(".jpeg") ||
-    pathname.endsWith(".svg") ||
-    pathname.endsWith(".ico") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname.match(/\.(png|jpg|jpeg|svg|ico|css|js)$/)
   ) {
     return NextResponse.next();
   }
 
-  // ✅ 認証不要ページを拡張
-  const publicPaths = ["/login", "/register", "/terms", "/privacy"];
-  const isPublicPage = publicPaths.some((path) => pathname.startsWith(path));
+  // API（認証不要なものは各 API 側で制御）
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
 
-  if (!token && !isPublicPage) {
-    const loginUrl = new URL("/register", req.url);
+  /* =========================
+     2. 公開ページ
+  ========================= */
+
+  const publicPaths = ["/login", "/register", "/terms", "/privacy"];
+  const isPublic = publicPaths.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  if (isPublic) {
+    return NextResponse.next();
+  }
+
+  /* =========================
+     3. 認証チェック
+  ========================= */
+
+  let token = null;
+  try {
+    token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+  } catch (err) {
+    console.warn("[middleware] getToken error:", err);
+  }
+
+  if (!token) {
+    const loginUrl = new URL("/login", req.url);
     return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
 }
 
+/* =========================
+   4. matcher（最重要）
+========================= */
+
 export const config = {
-  matcher: ["/:path*"],
+  matcher: [
+    /*
+      - ページだけを対象にする
+      - api / _next / static は除外
+    */
+    "/((?!api|_next|static|favicon.ico).*)",
+  ],
 };

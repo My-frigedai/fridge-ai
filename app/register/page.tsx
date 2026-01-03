@@ -1,7 +1,7 @@
 // app/register/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { signIn } from "next-auth/react";
@@ -10,271 +10,191 @@ import { useTheme } from "@/app/components/ThemeProvider";
 import { fadeInUp, springTransition, buttonTap } from "@/app/components/motion";
 
 /**
- * Helpers: base64url <-> ArrayBuffer / Uint8Array
+ * Register Page (client)
+ *
+ * Flow:
+ * 1) User fills name/email/password
+ * 2) POST /api/auth/set-password で user を作成（password をハッシュして保存する server 側処理想定）
+ * 3) call signIn("email", { email, redirect:false, callbackUrl: "/passkey-setup" }) to send magic link
+ * 4) show friendly message: "確認メールを送信しました"
  */
-function base64urlToUint8Array(base64url: string) {
-  // convert from base64url to base64
-  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  // add padding
-  const pad = base64.length % 4;
-  const base64Padded = base64 + (pad ? "=".repeat(4 - pad) : "");
-  const binary = atob(base64Padded);
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
 
-function uint8ArrayToBase64url(bytes: ArrayBuffer | Uint8Array) {
-  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  let binary = "";
-  for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
-  const base64 = btoa(binary);
-  const base64url = base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return base64url;
-}
-
-/**
- * Convert server-provided registration options into ones consumable by navigator.credentials.create()
- * This is defensive: server might send base64url strings or arrays.
- */
-function preformatCreateOptions(opts: any) {
-  const publicKey: any = { ...opts };
-
-  if (publicKey.challenge) {
-    if (typeof publicKey.challenge === "string") {
-      publicKey.challenge = base64urlToUint8Array(publicKey.challenge);
-    } else if (Array.isArray(publicKey.challenge)) {
-      publicKey.challenge = new Uint8Array(publicKey.challenge);
-    }
-  }
-
-  if (publicKey.user && publicKey.user.id) {
-    if (typeof publicKey.user.id === "string") {
-      publicKey.user.id = base64urlToUint8Array(publicKey.user.id);
-    } else if (Array.isArray(publicKey.user.id)) {
-      publicKey.user.id = new Uint8Array(publicKey.user.id);
-    }
-  }
-
-  if (
-    publicKey.excludeCredentials &&
-    Array.isArray(publicKey.excludeCredentials)
-  ) {
-    publicKey.excludeCredentials = publicKey.excludeCredentials.map(
-      (c: any) => {
-        const out: any = { ...c };
-        if (typeof out.id === "string") out.id = base64urlToUint8Array(out.id);
-        else if (Array.isArray(out.id)) out.id = new Uint8Array(out.id);
-        return out;
-      },
-    );
-  }
-
-  return publicKey;
-}
-
-/**
- * Serialize the created credential for sending to server
- */
-function serializeAttestation(credential: any) {
-  return {
-    id: credential.id,
-    rawId: uint8ArrayToBase64url(credential.rawId),
-    type: credential.type,
-    response: {
-      attestationObject: uint8ArrayToBase64url(
-        credential.response.attestationObject,
-      ),
-      clientDataJSON: uint8ArrayToBase64url(credential.response.clientDataJSON),
-    },
-    // transports might be present on a client authenticatorAttestationResponse but is optional
-  };
-}
-
-export default function RegisterPage() {
+export default function RegisterPageClient() {
   const router = useRouter();
-  const [step, setStep] = useState<"select" | "email" | "passkey">("select");
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // visibility toggles (per-field, robust)
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // UI state
+  const [step, setStep] = useState<"select" | "form">("select");
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null,
+  );
 
-  // Theme
-  const { theme } = useTheme();
-  const [isDark, setIsDark] = useState(false);
-  useEffect(() => {
-    const applied =
-      typeof document !== "undefined"
-        ? document.documentElement.getAttribute("data-theme")
-        : null;
-    setIsDark(applied ? applied === "dark" : theme === "dark");
-  }, [theme]);
+  // small validators
+  function validateEmail(e: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  }
 
-  // 1) Save password first (so credentials provider has a fallback)
   async function savePassword() {
     const res = await fetch("/api/auth/set-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, name }),
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || "Failed to save password");
+
+    // 成功時
+    if (res.ok) {
+      return true;
     }
-    return true;
+
+    // ---- 失敗時（ここが重要） ----
+    let payload: any = null;
+
+    try {
+      payload = await res.json();
+    } catch {
+      // JSONで返らないケースにも耐える
+      payload = null;
+    }
+
+    // ① 既に登録済みユーザー
+    if (res.status === 409) {
+      throw new Error(
+        payload?.message ??
+          "このメールアドレスは既に登録されています。ログインするか、パスワードをリセットしてください。",
+      );
+    }
+
+    // ② 入力不正（400）
+    if (res.status === 400) {
+      throw new Error(
+        payload?.message ??
+          "入力内容に誤りがあります。もう一度確認してください。",
+      );
+    }
+
+    // ③ その他（500 など）
+    throw new Error(
+      payload?.message ?? `ユーザー作成に失敗しました（${res.status}）`,
+    );
   }
 
-  // 2) Start WebAuthn registration by requesting options from server
-  async function getRegistrationOptions() {
-    const res = await fetch("/api/auth/webauthn/register-options", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name }),
-    });
-    const j = await res.json();
-    if (!res.ok || !j?.ok) {
-      throw new Error(j?.message || "Failed to get registration options");
-    }
-    return j.options;
-  }
-
-  // 3) Submit attestation to server
-  async function sendAttestation(attObj: any) {
-    const res = await fetch("/api/auth/webauthn/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, attestationResponse: attObj }),
-    });
-    const j = await res.json();
-    if (!res.ok || !j?.ok) {
-      throw new Error(j?.message || "Failed to register passkey");
-    }
-    return j;
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setMsg(null);
 
-    if (!email || !password)
-      return setMsg("メールアドレスとパスワードは必須です。");
-    if (password.length < 8)
-      return setMsg("パスワードは8文字以上にしてください。");
-    if (password !== confirm) return setMsg("パスワードが一致しません。");
+    // basic validation
+    if (!validateEmail(email)) {
+      setMsg({
+        type: "error",
+        text: "有効なメールアドレスを入力してください。",
+      });
+      return;
+    }
+    if (password.length < 8) {
+      setMsg({ type: "error", text: "パスワードは8文字以上にしてください。" });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMsg({ type: "error", text: "パスワード確認が一致しません。" });
+      return;
+    }
 
     setLoading(true);
     try {
-      // 1) Persist password (create or update user)
+      // 1) create user record and hash password on server
       await savePassword();
 
-      // Move to passkey creation step
-      setStep("passkey");
-    } catch (err: any) {
-      console.error("savePassword error:", err);
-      setMsg(err?.message || "アカウント作成に失敗しました。");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePasskeyRegister = async () => {
-    setMsg(null);
-    setLoading(true);
-
-    try {
-      // 1) Request registration options (server will create minimal user if needed)
-      const opts = await getRegistrationOptions();
-      const publicKey = preformatCreateOptions(opts);
-
-      // 2) navigator.credentials.create
-      const credential: any = (await navigator.credentials.create({
-        publicKey,
-      })) as any;
-      if (!credential) throw new Error("No credential created");
-
-      // 3) serialize and send to server for verification/storage
-      const serialized = serializeAttestation(credential);
-      await sendAttestation(serialized);
-
-      // 4) Registration success -> auto sign-in via credentials (we saved password earlier)
-      const signInResult = await signIn("credentials", {
-        redirect: false,
+      // 2) send magic link via NextAuth EmailProvider that will redirect to /passkey-setup on click
+      const res: any = await signIn("email", {
         email,
-        password,
+        redirect: false,
+        callbackUrl: "/passkey-setup",
       });
 
-      if ((signInResult as any)?.ok) {
-        router.push("/");
-      } else {
-        // fallback redirect to login with registered flag
-        router.push("/login?registered=1");
+      if (res?.error) {
+        console.warn("[email signIn] error res:", res);
+        setMsg({
+          type: "error",
+          text: "確認メール送信に失敗しました。メール設定を確認してください。",
+        });
+        return;
       }
+
+      setMsg({
+        type: "ok",
+        text: "確認メールを送信しました。メール内のリンクをクリックして登録を完了してください（リンクは数分で届きます）。",
+      });
+      // show passkey info and next steps (do not redirect automatically)
     } catch (err: any) {
-      console.error("passkey register error:", err);
-      setMsg(err?.message || "パスキー登録に失敗しました。");
+      console.error("register error:", err);
+      setMsg({
+        type: "error",
+        text: err?.message || "アカウント作成に失敗しました。",
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const res = await signIn("google", { callbackUrl: "/", redirect: false });
-      if (!(res as any)?.ok) setMsg("Google認証に失敗しました。");
+      await signIn("google", { callbackUrl: "/" });
     } catch (err) {
-      console.error(err);
-      setMsg("Google認証中にエラーが発生しました。");
+      console.error("[google signup] error:", err);
+      setMsg({ type: "error", text: "Googleでの登録に失敗しました。" });
     } finally {
       setLoading(false);
     }
   };
 
   const handleApple = () => {
-    // Apple is planned: keep button but disabled in actual UI (we also leave this noop)
-    alert("Appleでの登録は今後実装予定です");
+    alert("Apple登録は未実装（後で対応予定）");
   };
 
   return (
     <motion.div
-      className="min-h-screen flex items-center justify-start pt-12 pb-8 transition-colors duration-300"
+      className="min-h-screen flex items-center justify-start pt-10 pb-8"
       initial="hidden"
       animate="show"
       variants={fadeInUp}
     >
       <div className="w-full max-w-md h-screen mx-auto flex flex-col justify-between items-center -translate-y-6 p-6">
         <div className="flex flex-col items-center gap-2">
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
-          >
+          {mounted ? (
             <Image
               src={
-                isDark ? "/my-fridgeai-logo-white.png" : "/my-fridgeai-logo.png"
+                theme === "dark"
+                  ? "/my-fridgeai-logo-white.png"
+                  : "/my-fridgeai-logo.png"
               }
-              alt="My-fridgeai"
+              alt="My-FridgeAI"
               width={180}
               height={52}
               priority
+              style={{ objectFit: "contain" }}
             />
-          </motion.div>
+          ) : (
+            <div style={{ width: 180, height: 52 }} />
+          )}
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-1"
-            transition={{ duration: 0.45, delay: 0.08 }}
-          >
+          {mounted ? (
             <Image
               src={
-                isDark
+                theme === "dark"
                   ? "/fridge-illustration-dark.png"
                   : "/fridge-illustration.png"
               }
@@ -282,8 +202,11 @@ export default function RegisterPage() {
               width={220}
               height={130}
               priority
+              style={{ objectFit: "contain" }}
             />
-          </motion.div>
+          ) : (
+            <div style={{ width: 220, height: 130 }} />
+          )}
 
           <h2 className="mt-2 text-center text-lg font-semibold text-primary">
             Welcome to My-FridgeAI
@@ -297,9 +220,9 @@ export default function RegisterPage() {
           {step === "select" ? (
             <div className="flex flex-col gap-3">
               <motion.button
-                onClick={() => setStep("email")}
+                onClick={() => setStep("form")}
                 disabled={loading}
-                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
@@ -310,11 +233,12 @@ export default function RegisterPage() {
               <motion.button
                 onClick={handleGoogle}
                 disabled={loading}
-                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
+                {/* Google SVG (official colors) */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 533.5 544.3"
@@ -345,7 +269,7 @@ export default function RegisterPage() {
               <motion.button
                 onClick={handleApple}
                 disabled
-                className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition transform duration-150 ease-out"
+                className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2 disabled:opacity-60"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
@@ -364,7 +288,7 @@ export default function RegisterPage() {
               </motion.button>
 
               <p className="text-xs text-center text-secondary mt-2">
-                続行すると、
+                続行すると
                 <a href="/terms" className="underline ml-1 text-primary">
                   利用規約
                 </a>
@@ -382,92 +306,152 @@ export default function RegisterPage() {
                 </a>
               </p>
             </div>
-          ) : step === "email" ? (
+          ) : (
             <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
               <input
-                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm focus:outline-none dark:text-gray-100"
-                placeholder="表示名（任意）"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm"
+                placeholder="表示名（任意）"
               />
+
               <input
-                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm focus:outline-none dark:text-gray-100"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm"
                 placeholder="メールアドレス"
                 type="email"
                 autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <input
-                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm focus:outline-none dark:text-gray-100"
-                placeholder="パスワード（8文字以上）"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <input
-                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm focus:outline-none dark:text-gray-100"
-                placeholder="パスワード（確認）"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
               />
 
-              {msg && <div className="text-sm text-red-600">{msg}</div>}
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 pr-10 text-sm"
+                  placeholder="パスワード（8文字以上）"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-2/4 -translate-y-2/4 p-1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    /* eye open icon */
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5z"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                      />
+                    </svg>
+                  ) : (
+                    /* eye closed icon */
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M3 3l18 18"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 pr-10 text-sm"
+                  placeholder="パスワード（確認）"
+                  type={showConfirm ? "text" : "password"}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((s) => !s)}
+                  className="absolute right-2 top-2/4 -translate-y-2/4 p-1"
+                  aria-label={
+                    showConfirm
+                      ? "Hide confirm password"
+                      : "Show confirm password"
+                  }
+                >
+                  {showConfirm ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5z"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M3 3l18 18"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
+
+              {msg && (
+                <div
+                  className={`text-sm ${msg.type === "error" ? "text-red-600" : "text-green-700"}`}
+                >
+                  {msg.text}
+                </div>
+              )}
 
               <motion.button
-                className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full transition transform duration-150 ease-out active:translate-y-1 active:brightness-95 disabled:opacity-60"
                 type="submit"
                 disabled={loading}
+                className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
-                {loading ? "次へ…" : "パスキーで登録"}
+                {loading ? "処理中…" : "アカウントを作成して確認メールを送信"}
               </motion.button>
 
               <button
                 type="button"
-                className="w-full mt-2 text-center text-sm underline disabled:opacity-60"
+                className="w-full mt-2 text-center text-sm underline"
                 onClick={() => setStep("select")}
                 disabled={loading}
               >
                 ← 戻る
               </button>
             </form>
-          ) : (
-            // passkey step
-            <div className="flex flex-col gap-3">
-              <p className="text-sm text-secondary">
-                パスキーを作成してアカウント登録を完了します。
-              </p>
-
-              <motion.button
-                type="button"
-                className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
-                onClick={handlePasskeyRegister}
-                disabled={loading}
-                whileTap={buttonTap.whileTap}
-                whileHover={buttonTap.whileHover}
-                transition={springTransition}
-                style={{ color: "var(--color-passkey-text)" }}
-              >
-                {loading ? "登録中…" : "パスキーを作成"}
-              </motion.button>
-
-              <button
-                type="button"
-                className="w-full mt-2 text-center text-sm underline disabled:opacity-60"
-                onClick={() => setStep("select")}
-                disabled={loading}
-              >
-                ← 戻る
-              </button>
-
-              {msg && <div className="text-sm text-red-600">{msg}</div>}
-            </div>
           )}
         </div>
 

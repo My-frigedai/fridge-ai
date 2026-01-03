@@ -1,7 +1,7 @@
 // app/login/LoginClient.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -10,6 +10,9 @@ import { useTheme } from "@/app/components/ThemeProvider";
 import { motion } from "framer-motion";
 import { fadeInUp, springTransition, buttonTap } from "@/app/components/motion";
 
+/**
+ * Helpers: base64url <-> Uint8Array
+ */
 function base64urlToUint8Array(base64url: string) {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
   const pad = base64.length % 4;
@@ -26,36 +29,77 @@ function uint8ArrayToBase64url(bytes: ArrayBuffer | Uint8Array) {
   let binary = "";
   for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
   const base64 = btoa(binary);
-  const base64url = base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return base64url;
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/**
+ * Convert server-provided authenticate options into navigator-friendly publicKey
+ * Defensive: supports base64url strings or arrays.
+ */
 function preformatRequestOptions(opts: any) {
-  const publicKey: any = { ...opts };
-  if (publicKey.challenge && typeof publicKey.challenge === "string") {
-    publicKey.challenge = base64urlToUint8Array(publicKey.challenge);
-  } else if (Array.isArray(publicKey.challenge)) {
-    publicKey.challenge = new Uint8Array(publicKey.challenge);
+  if (!opts) throw new Error("No authenticate options from server");
+  // server may wrap with { publicKey: { ... } } or return object directly
+  const publicKey: any = { ...(opts.publicKey ?? opts) };
+
+  // challenge
+  if (publicKey.challenge) {
+    if (typeof publicKey.challenge === "string") {
+      publicKey.challenge = base64urlToUint8Array(publicKey.challenge);
+    } else if (Array.isArray(publicKey.challenge)) {
+      publicKey.challenge = new Uint8Array(publicKey.challenge);
+    }
+  } else {
+    throw new Error("Authenticate options missing challenge");
   }
-  if (publicKey.allowCredentials && Array.isArray(publicKey.allowCredentials)) {
+
+  // allowCredentials
+  if (Array.isArray(publicKey.allowCredentials)) {
     publicKey.allowCredentials = publicKey.allowCredentials.map((c: any) => {
-      const out: any = { ...c };
+      const out = { ...c };
       if (typeof out.id === "string") out.id = base64urlToUint8Array(out.id);
       else if (Array.isArray(out.id)) out.id = new Uint8Array(out.id);
       return out;
     });
   }
+
   return publicKey;
 }
+
+/**
+ * Serialize a navigator.credentials.get() assertion for server
+ */
+function serializeAssertion(assertion: any) {
+  return {
+    id: assertion.id,
+    rawId: uint8ArrayToBase64url(assertion.rawId),
+    type: assertion.type,
+    response: {
+      authenticatorData: uint8ArrayToBase64url(
+        assertion.response.authenticatorData,
+      ),
+      clientDataJSON: uint8ArrayToBase64url(assertion.response.clientDataJSON),
+      signature: uint8ArrayToBase64url(assertion.response.signature),
+      userHandle: assertion.response.userHandle
+        ? uint8ArrayToBase64url(assertion.response.userHandle)
+        : null,
+    },
+  };
+}
+
+/* -----------------------
+   Component
+   ----------------------- */
 
 export default function LoginClient() {
   const router = useRouter();
   const search = useSearchParams();
   const registered = search?.get ? search.get("registered") : null;
 
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // UI state
   const [step, setStep] = useState<"select" | "email">("select");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,151 +107,196 @@ export default function LoginClient() {
     registered ? "登録完了しました。ログインしてください。" : null,
   );
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Theme
-  const { theme } = useTheme();
-  const [isDark, setIsDark] = useState(false);
+  // Minor spacing / layout: keep visual similar but avoid huge gaps
+  // (No global layout changes — only local spacing fixes)
   useEffect(() => {
-    const applied =
-      typeof document !== "undefined"
-        ? document.documentElement.getAttribute("data-theme")
-        : null;
-    setIsDark(applied ? applied === "dark" : theme === "dark");
-  }, [theme]);
+    // reset messages when switching steps to avoid stale messages
+    setMsg((m) => {
+      if (!m) return m;
+      return m;
+    });
+  }, [step]);
 
-  // --------------------------
-  // 🔐 パスキーでログイン
-  // --------------------------
+  // ---------- Passkey login ----------
   const handlePasskeyLogin = async () => {
     setMsg(null);
     setLoading(true);
-
     try {
-      // request options from your server
+      if (!email) {
+        setMsg("パスキーでログインするにはメールアドレスを入力してください。");
+        return;
+      }
+
+      // 1) request options
       const startRes = await fetch("/api/auth/webauthn/authenticate-options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const startJson = await startRes.json();
+      let startJson: any = {};
+      try {
+        startJson = await startRes.json();
+      } catch (e) {
+        // malformed JSON
+        console.error("[passkey] authenticate-options JSON parse failed:", e);
+      }
       if (!startRes.ok || !startJson?.ok) {
-        setMsg(startJson?.message || "パスキーの開始に失敗しました。");
-        setLoading(false);
+        // friendly handling for known server messages (no passkeys etc.)
+        const serverMsg =
+          startJson?.message ??
+          (startRes.status
+            ? `サーバーエラー（${startRes.status}）`
+            : "サーバー通信に失敗しました");
+        if (
+          serverMsg.includes("no passkeys") ||
+          serverMsg.includes("No passkeys")
+        ) {
+          setMsg(
+            "このアドレスではパスキーが登録されていません。メール/パスワードでログインしてください。",
+          );
+        } else if (
+          serverMsg.includes("no such user") ||
+          serverMsg.includes("no user")
+        ) {
+          setMsg("そのメールアドレスは未登録です。新規登録してください。");
+        } else {
+          setMsg(serverMsg);
+        }
         return;
       }
 
-      // format into publicKey for navigator.credentials.get
       const publicKey = preformatRequestOptions(startJson.options);
+      // 2) call WebAuthn API
+      if (!("credentials" in navigator)) {
+        setMsg(
+          "ブラウザがWebAuthnに対応していません。別の方法でログインしてください。",
+        );
+        return;
+      }
 
       const assertion: any = (await navigator.credentials.get({
         publicKey,
-      })) as any;
-      if (!assertion) throw new Error("No assertion obtained");
-
-      // serialize assertion
-      const authData = {
-        id: assertion.id,
-        rawId: uint8ArrayToBase64url(assertion.rawId),
-        type: assertion.type,
-        response: {
-          authenticatorData: uint8ArrayToBase64url(
-            assertion.response.authenticatorData,
-          ),
-          clientDataJSON: uint8ArrayToBase64url(
-            assertion.response.clientDataJSON,
-          ),
-          signature: uint8ArrayToBase64url(assertion.response.signature),
-          userHandle: assertion.response.userHandle
-            ? uint8ArrayToBase64url(assertion.response.userHandle)
-            : null,
-        },
-      };
-
-      // send to server for verification
-      const verifyRes = await fetch("/api/auth/webauthn/authenticate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, assertionResponse: authData }),
-      });
-
-      const verifyJson = await verifyRes.json();
-      if (!verifyRes.ok || !verifyJson.ok) {
-        setMsg(verifyJson?.message || "パスキー認証に失敗しました。");
-        setLoading(false);
+      } as any)) as any;
+      if (!assertion) {
+        setMsg("認証がキャンセルされました。もう一度お試しください。");
         return;
       }
 
-      // Server returned success — in your current backend code it returns userId.
-      // The server side should create a session (or you can signIn with credentials fallback).
-      // Here we follow your existing pattern: redirect to home after success.
-      router.push("/");
+      // 3) serialize and send to server
+      const serialized = serializeAssertion(assertion);
+      const verifyRes = await fetch("/api/auth/webauthn/authenticate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, assertionResponse: serialized }),
+      });
+      let verifyJson: any = {};
+      try {
+        verifyJson = await verifyRes.json();
+      } catch (e) {
+        console.error("[passkey] authenticate response JSON parse failed:", e);
+      }
+      if (!verifyRes.ok || !verifyJson?.ok) {
+        const serverMsg =
+          verifyJson?.message ??
+          (verifyRes.status
+            ? `認証に失敗しました（${verifyRes.status}）`
+            : "認証に失敗しました");
+        setMsg(serverMsg);
+        return;
+      }
+
+      // server should return a one-time token to use with credentials provider
+      const token = verifyJson.token;
+      if (!token) {
+        console.error("[passkey] server did not return a token:", verifyJson);
+        setMsg("認証に失敗しました（トークンがありません）。");
+        return;
+      }
+
+      // 4) sign in with one-time token via credentials provider
+      const sres: any = await signIn("credentials", {
+        redirect: false,
+        token,
+        callbackUrl: "/",
+      });
+      if (sres?.ok) {
+        // success -> go home
+        router.replace("/");
+      } else {
+        // fallback: go to login page with registered flag
+        router.replace("/login?registered=1");
+      }
     } catch (err: any) {
-      console.error("passkey login error:", err);
-      setMsg(err?.message || "パスキーでのログイン処理に失敗しました。");
+      console.error("[passkey login] error:", err);
+      const friendly =
+        err?.message || "パスキーログイン中にエラーが発生しました。";
+      setMsg(friendly);
     } finally {
       setLoading(false);
     }
   };
 
-  // --------------------------
-  // 🔑 メール + パスワードログイン
-  // --------------------------
+  // ---------- Email + Password login ----------
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
 
-    if (!email) return setMsg("メールアドレスを入力してください");
-    if (!password) return setMsg("パスワードを入力してください");
-
-    // パスワードポリシー強化チェック
-    const pwd = password;
-    const tooShort = pwd.length < 12;
-    const noUpper = !/[A-Z]/.test(pwd);
-    const noLower = !/[a-z]/.test(pwd);
-    const noNum = !/[0-9]/.test(pwd);
-
-    if (tooShort || noUpper || noLower || noNum) {
-      setMsg(
-        "パスワードは12文字以上・大文字/小文字/数字を含む必要があります。",
-      );
-      return;
-    }
+    if (!email) return setMsg("メールアドレスを入力してください。");
+    if (!password) return setMsg("パスワードを入力してください。");
 
     setLoading(true);
     try {
-      const res = await signIn("credentials", {
+      // use credentials provider (email/password)
+      const res: any = await signIn("credentials", {
         redirect: false,
         email,
         password,
+        callbackUrl: "/",
       });
 
       if (res?.ok) {
-        router.push("/");
+        router.replace("/");
       } else {
-        setMsg("メールアドレスまたはパスワードが正しくありません。");
+        // NextAuth may return error field
+        const errMsg =
+          res?.error ?? "メールアドレスまたはパスワードが正しくありません。";
+        setMsg(errMsg);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("[password login] error:", err);
       setMsg("ログイン中にエラーが発生しました。");
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------- Google OAuth ----------
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const res = await signIn("google", { callbackUrl: "/", redirect: false });
-      if (!(res as any)?.ok) {
-        setMsg("外部プロバイダでの認証に失敗しました。");
-      }
+      await signIn("google", { callbackUrl: "/" });
+      // signIn will redirect in most configurations
     } catch (err) {
-      console.error("Google signIn error:", err);
-      setMsg("外部プロバイダでの認証に失敗しました。");
+      console.error("[google login] error:", err);
+      setMsg("Google認証に失敗しました。");
     } finally {
       setLoading(false);
     }
   };
+
+  // Accessibility: polite live region for messages
+  const Message = () =>
+    msg ? (
+      <div
+        className="text-sm text-center text-red-600 mt-2"
+        role="status"
+        aria-live="polite"
+      >
+        {msg}
+      </div>
+    ) : null;
 
   return (
     <motion.div
@@ -216,35 +305,41 @@ export default function LoginClient() {
       animate="show"
       variants={fadeInUp}
     >
-      <div className="w-full max-w-md h-screen mx-auto flex flex-col justify-between items-center -translate-y-6 p-6">
-        {/* Logo */}
-        <motion.div
-          className="flex flex-col items-center gap-2"
-          initial="hidden"
-          animate="show"
-          variants={fadeInUp}
-        >
-          <Image
-            src={
-              isDark ? "/my-fridgeai-logo-white.png" : "/my-fridgeai-logo.png"
-            }
-            alt="My-FridgeAI"
-            width={180}
-            height={52}
-            priority
-          />
+      <div className="w-full max-w-md h-screen mx-auto flex flex-col justify-center items-center p-6">
+        {/* header */}
+        <div className="flex flex-col items-center gap-2">
+          {mounted ? (
+            <Image
+              src={
+                theme === "dark"
+                  ? "/my-fridgeai-logo-white.png"
+                  : "/my-fridgeai-logo.png"
+              }
+              alt="My-FridgeAI"
+              width={180}
+              height={52}
+              priority
+            />
+          ) : (
+            <div style={{ width: 180, height: 52 }} />
+          )}
 
-          <Image
-            src={
-              isDark
-                ? "/fridge-illustration-dark.png"
-                : "/fridge-illustration.png"
-            }
-            alt="Fridge"
-            width={220}
-            height={130}
-            priority
-          />
+          {mounted ? (
+            <Image
+              src={
+                theme === "dark"
+                  ? "/fridge-illustration-dark.png"
+                  : "/fridge-illustration.png"
+              }
+              alt="Fridge"
+              width={220}
+              height={130}
+              priority
+              style={{ objectFit: "contain" }}
+            />
+          ) : (
+            <div style={{ width: 220, height: 130 }} />
+          )}
 
           <h2 className="mt-2 text-center text-lg font-semibold text-primary">
             Welcome to My-FridgeAI
@@ -252,16 +347,19 @@ export default function LoginClient() {
           <p className="text-center text-sm text-secondary">
             冷蔵庫の管理を、もっとシンプルに。
           </p>
-        </motion.div>
+        </div>
 
-        {/* Main UI */}
-        <div className="w-full">
+        {/* main */}
+        <div className="w-full mt-4">
           {step === "select" ? (
             <div className="flex flex-col gap-3">
-              {/* メールアドレス / パスキー選択 */}
               <motion.button
-                onClick={() => setStep("email")}
-                className="w-full surface-btn font-semibold py-3 rounded-full border"
+                onClick={() => {
+                  setStep("email");
+                  setMsg(null);
+                }}
+                disabled={loading}
+                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 disabled:opacity-60"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
@@ -269,14 +367,15 @@ export default function LoginClient() {
                 メールアドレス / パスキーでログイン
               </motion.button>
 
-              {/* Googleログイン (残す) */}
               <motion.button
                 onClick={handleGoogle}
-                className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2"
+                disabled={loading}
+                className="w-full surface-btn font-semibold py-3 rounded-full flex items-center justify-center gap-2 transition transform duration-150 ease-out active:translate-y-1 disabled:opacity-60"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
+                {/* Google SVG */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 533.5 544.3"
@@ -304,15 +403,15 @@ export default function LoginClient() {
                 Googleでログイン
               </motion.button>
 
-              {/* Apple (残すが disabled) */}
               <motion.button
-                onClick={() => {}}
+                onClick={() => alert("Appleログインは後日実装します")}
                 disabled
                 className="w-full surface-btn font-semibold py-3 rounded-full border flex items-center justify-center gap-2 disabled:opacity-60"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
               >
+                {/* Apple SVG */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 384 512"
@@ -321,7 +420,7 @@ export default function LoginClient() {
                   fill="currentColor"
                   aria-hidden
                 >
-                  <path d="M318.7 268.7c-.2-37.3 16.4-65.7 50-86.2-18.8-27.6-47.2-42.7-86.2-45.5-36.3-2.7-76.2 21.3-90.3 21.3-15 0-50-20.4-77.6-19.8-56.8.8-116.5 46.4-116.5 139.3 0 27.5 5 56.1 15 85.8 13.4 38.7 61.9 133.6 112.3 132 23.9-.5 40.8-16.9 76.3-16.9 34.6 0 50.3 16.9 77.6 16.3 50.8-1 94.7-85.3 107.9-124.2-68.4-32.3-68.5-95-68.5-101.8zM257.5 85.4C282 58.6 293.4 24.1 289 0c-26.6 1.1-57.9 18-76.6 39.2-16.8 19.3-31.6 46.9-27.6 74.4 29.1 2.2 58.9-14.8 72.7-28.2z" />
+                  <path d="M318.7 268.7c-.2-37.3 16.4-65.7 50-86.2-18.8-27.6-47.2-42.7-86.2-45.5-36.3-2.7-76.2 21.3-90.3 21.3-15 0-50-20.4-77.6-19.8-56.8.8-116.5 46.4-116.5 139.3 0 27.5 5 56.1 15 85.8 13.4 38.7 61.9 133.6 112.3 132 23.9-.5 40.8-16.9 76.3-16.9 34.6 0 50.3 16.9 77.6 16.3 50.8-1 94.7-85.3 107.9-124.2zM257.5 85.4C282 58.6 293.4 24.1 289 0c-26.6 1.1-57.9 18-76.6 39.2-16.8 19.3-31.6 46.9-27.6 74.4 29.1 2.2 58.9-14.8 72.7-28.2z" />
                 </svg>
                 Appleでログイン
               </motion.button>
@@ -346,9 +445,7 @@ export default function LoginClient() {
               </p>
             </div>
           ) : (
-            // -------------------------
-            // メール & パスキー画面
-            // -------------------------
+            // email step (contains both passkey & password flows)
             <form
               onSubmit={handlePasswordLogin}
               className="flex flex-col gap-3"
@@ -359,25 +456,94 @@ export default function LoginClient() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoCapitalize="none"
                 autoComplete="email"
                 required
               />
 
-              <input
-                className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 text-sm"
-                placeholder="パスワード（12文字以上）"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
+              {/* Password field (only used for password-flow) */}
+              <div className="relative">
+                <input
+                  className="w-full bg-white dark:bg-gray-800 rounded-lg border px-3 py-2 pr-10 text-sm"
+                  placeholder="パスワード"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={
+                    showPassword ? "パスワードを隠す" : "パスワードを表示する"
+                  }
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-2/4 -translate-y-2/4 p-1"
+                >
+                  {/* Single consistent eye icon; simple stroke-based SVG to avoid clipping */}
+                  {showPassword ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M3 3l18 18"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M10.58 10.58A3 3 0 0 0 13.42 13.42"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M2 12s4-7 10-7c2.01 0 3.87.5 5.5 1.34"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
 
-              {/* パスキーでログイン（色は CSS 変数に任せる） */}
+              {/* Passkey login button */}
               <motion.button
                 type="button"
                 onClick={handlePasskeyLogin}
+                disabled={loading}
                 className="w-full bg-white border rounded-full py-3 text-sm"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
@@ -387,18 +553,18 @@ export default function LoginClient() {
                 パスキーでログイン
               </motion.button>
 
-              {msg && <div className="text-sm text-red-600">{msg}</div>}
+              <Message />
 
-              {/* 通常ログイン */}
+              {/* Password login */}
               <motion.button
                 type="submit"
+                disabled={loading}
                 className="w-full bg-black dark:bg-white dark:text-black text-white font-semibold py-3 rounded-full"
                 whileTap={buttonTap.whileTap}
                 whileHover={buttonTap.whileHover}
                 transition={springTransition}
-                disabled={loading}
               >
-                {loading ? "確認中…" : "パスワードでログイン"}
+                {loading ? "確認中…" : "メールアドレス・パスワードでログイン"}
               </motion.button>
 
               <div className="flex items-center justify-between mt-2">
@@ -420,7 +586,7 @@ export default function LoginClient() {
           )}
         </div>
 
-        <div className="w-full text-center text-xs text-muted mt-2">
+        <div className="w-full text-center text-xs text-muted mt-4">
           © My-FridgeAI
         </div>
       </div>

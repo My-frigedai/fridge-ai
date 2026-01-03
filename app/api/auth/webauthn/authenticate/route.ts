@@ -1,104 +1,172 @@
 // app/api/auth/webauthn/authenticate/route.ts
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import {
-  verifyAuthenticationResponse,
-  VerifiedAuthenticationResponse,
-} from "@simplewebauthn/server";
+import { prisma } from "@/lib/prisma";
+import type { Passkey } from "@prisma/client";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import { getWebAuthnRP } from "@/lib/webauthnRP";
 import crypto from "crypto";
 
-const ORIGIN = process.env.NEXT_PUBLIC_BASE_URL;
-const expectedOrigin = ORIGIN ? new URL(ORIGIN).origin : undefined;
-const rpID = ORIGIN ? new URL(ORIGIN).host : undefined;
+/** helpers */
+function base64urlToBase64(s: string) {
+  let out = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (out.length % 4 !== 0) out += "=";
+  return out;
+}
+function normalizeBase64url(input: string | ArrayBuffer | Uint8Array) {
+  if (typeof input === "string") {
+    // convert to base64url canonical form (no padding)
+    return input.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  // ArrayBuffer/Uint8Array -> base64url
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input as any);
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+function parsePublicKeyFromStored(stored: string) {
+  // stored could be base64 (standard) or base64url; detect and convert to Buffer
+  if (stored.includes("-") || stored.includes("_")) {
+    const b64 = base64urlToBase64(stored);
+    return Buffer.from(b64, "base64");
+  } else {
+    return Buffer.from(stored, "base64");
+  }
+}
 
 export async function POST(req: Request) {
   try {
-    if (!expectedOrigin || !rpID) {
-      console.error("env misconfiguration for origin/rpID");
-      return NextResponse.json(
-        { ok: false, message: "server misconfiguration" },
-        { status: 500 },
-      );
-    }
+    const body = await req.json().catch(() => ({}));
+    const { email: rawEmail, assertionResponse } = body ?? {};
 
-    const body = await req.json().catch(() => null);
-    if (!body)
-      return NextResponse.json(
-        { ok: false, message: "Invalid JSON" },
-        { status: 400 },
-      );
-
-    const { email: rawEmail, assertionResponse } = body as any;
-    if (!rawEmail || !assertionResponse)
+    if (!rawEmail || !assertionResponse) {
       return NextResponse.json(
         { ok: false, message: "Missing parameters" },
         { status: 400 },
       );
+    }
 
     const email = String(rawEmail).toLowerCase().trim();
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.verifyToken)
+    if (!user || !user.verifyToken) {
       return NextResponse.json(
         { ok: false, message: "No challenge stored" },
         { status: 400 },
       );
-    const expectedChallenge = String(user.verifyToken);
+    }
 
-    const passkeys = await prisma.passkey.findMany({
+    // optional: check expiry if verifyExpires is present
+    if (user.verifyExpires && new Date() > user.verifyExpires) {
+      return NextResponse.json(
+        { ok: false, message: "Challenge expired" },
+        { status: 400 },
+      );
+    }
+
+    const passkeys: Passkey[] = await prisma.passkey.findMany({
       where: { userId: user.id },
     });
-    if (!passkeys || passkeys.length === 0)
+    if (passkeys.length === 0) {
       return NextResponse.json(
         { ok: false, message: "No passkeys" },
         { status: 400 },
       );
+    }
 
-    // Determine credential id (normalize to base64url string)
-    // client may send rawId or id in base64url; ensure match with DB
-    const incomingId = assertionResponse.id ?? assertionResponse.rawId;
-    if (!incomingId)
+    const assertionIdRaw = (assertionResponse as any).id;
+    if (
+      !assertionIdRaw ||
+      (typeof assertionIdRaw !== "string" &&
+        !(assertionIdRaw instanceof ArrayBuffer))
+    ) {
       return NextResponse.json(
-        { ok: false, message: "Missing credential id" },
+        { ok: false, message: "Invalid assertion id" },
         { status: 400 },
       );
+    }
 
-    // some clients send ArrayBuffer-like; but JSON will typically be base64url string
-    const credentialIdBase64url =
-      typeof incomingId === "string" ? incomingId : String(incomingId);
+    // normalize incoming assertion id -> base64url string
+    const assertionIdBase64url =
+      typeof assertionIdRaw === "string"
+        ? normalizeBase64url(assertionIdRaw)
+        : normalizeBase64url(
+            Buffer.from(assertionIdRaw as ArrayBuffer).toString("base64"),
+          );
 
-    const pk = passkeys.find((p) => p.credentialId === credentialIdBase64url);
-    if (!pk)
+    // find passkey by credentialId (credentialId in DB assumed base64url)
+    const pk = passkeys.find((p) => {
+      const dbId = normalizeBase64url(p.credentialId);
+      return dbId === assertionIdBase64url;
+    });
+
+    if (!pk) {
+      console.warn(
+        "[authenticate] unknown credential id:",
+        assertionIdBase64url,
+        "user:",
+        user.id,
+      );
       return NextResponse.json(
         { ok: false, message: "Unknown credential" },
         { status: 400 },
       );
+    }
 
-    // Verify assertion
-    const verification = (await verifyAuthenticationResponse({
-      response: assertionResponse,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: rpID,
-    } as any)) as VerifiedAuthenticationResponse;
+    const { origin, rpID } = getWebAuthnRP();
+    const expectedChallenge = String(user.verifyToken);
+
+    // prepare credential object expected by simplewebauthn
+    const credential = {
+      id: pk.credentialId, // base64url string OK
+      publicKey: parsePublicKeyFromStored(pk.publicKey), // Buffer
+      counter: Number(pk.signCount ?? 0),
+    };
+
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: assertionResponse as any,
+        expectedChallenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        credential,
+      } as any);
+    } catch (e: any) {
+      console.error(
+        "[authenticate] verify error:",
+        e && (e.stack || e.message) ? e.stack || e.message : e,
+      );
+      return NextResponse.json(
+        { ok: false, message: e?.message ?? "Verification error" },
+        { status: 400 },
+      );
+    }
 
     if (!verification || !verification.verified) {
-      console.error("verifyAuthenticationResponse failed:", verification);
+      console.warn("[authenticate] verification failed", verification);
       return NextResponse.json(
         { ok: false, message: "Verification failed" },
         { status: 400 },
       );
     }
 
-    const newCounter =
-      verification.authenticationInfo?.newCounter ?? pk.signCount;
+    // update signCount safely
+    const newCounter = Number(
+      (verification.authenticationInfo &&
+        verification.authenticationInfo.newCounter) ??
+        pk.signCount ??
+        0,
+    );
     await prisma.passkey.update({
       where: { id: pk.id },
-      data: { signCount: Number(newCounter) },
+      data: { signCount: newCounter },
     });
 
-    // clear challenge and issue one-time token (short-lived)
+    // consume challenge, issue one-time token (short lived) for credentials provider sign-in
     const oneTime = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -108,15 +176,15 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      token: oneTime,
-      message: "webauthn success",
-    });
+    // return token to client
+    return NextResponse.json({ ok: true, token: oneTime }, { status: 200 });
   } catch (err: any) {
-    console.error("webauthn authenticate error:", err);
+    console.error(
+      "[authenticate] unexpected error:",
+      err && (err.stack || err.message) ? err.stack || err.message : err,
+    );
     return NextResponse.json(
-      { ok: false, message: "Server error" },
+      { ok: false, message: "server error" },
       { status: 500 },
     );
   }
