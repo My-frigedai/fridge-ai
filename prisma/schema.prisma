@@ -3,24 +3,24 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime  @default(now())
-  status        String?   @default("active")
-  verifyToken   String?   @unique
-  verifyCode    String?
-  verifyExpires DateTime?
-
+  id                String              @id @default(cuid())
+  name              String?
+  email             String?             @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  createdAt         DateTime            @default(now())
+  status            String?             @default("active")
+  verifyToken       String?             @unique
+  verifyCode        String?
+  verifyExpires     DateTime?
   accounts          Account[]
+  AuthChallenges    AuthChallenge[]
   EmailVerification EmailVerification[]
   Favorite          Favorite[]
   Ingredient        Ingredient[]
@@ -30,8 +30,6 @@ model User {
   sessions          Session[]
   TrustedDevice     TrustedDevice[]
   UsageHistory      UsageHistory[]
-
-  AuthChallenges AuthChallenge[]
 }
 
 model Account {
@@ -68,9 +66,8 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-/**
- * WebAuthn passkey representation
- */
+/// *
+///  * WebAuthn passkey representation
 model Passkey {
   id           String   @id @default(cuid())
   userId       String
@@ -80,22 +77,19 @@ model Passkey {
   transports   String?
   name         String?
   createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/**
- * Short-lived stored challenges for webauthn (authenticate without email flow)
- */
+/// *
+///  * Short-lived stored challenges for webauthn (authenticate without email flow)
 model AuthChallenge {
   id        String    @id @default(cuid())
   challenge String    @unique
-  userId    String? 
+  userId    String?
   used      Boolean   @default(false)
   expiresAt DateTime?
   createdAt DateTime  @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailVerification {
@@ -106,8 +100,7 @@ model EmailVerification {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PasswordReset {
@@ -117,8 +110,7 @@ model PasswordReset {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TrustedDevice {
@@ -129,8 +121,7 @@ model TrustedDevice {
   createdAt  DateTime @default(now())
   lastUsed   DateTime @default(now())
   expiresAt  DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tokenHash])
 }
@@ -141,8 +132,7 @@ model Favorite {
   menuId    String?
   title     String?
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Ingredient {
@@ -155,8 +145,7 @@ model Ingredient {
   category  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Menu {
@@ -168,8 +157,7 @@ model Menu {
   tips        String?
   ingredients Json?
   createdAt   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UsageHistory {
@@ -178,6 +166,5 @@ model UsageHistory {
   date   DateTime @default(now())
   action String
   meta   Json?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

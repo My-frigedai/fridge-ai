@@ -1,7 +1,7 @@
 // app/api/ingredients/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function PUT(
   req: NextRequest,

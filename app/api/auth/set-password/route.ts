@@ -3,17 +3,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 
-/**
- * POST /api/auth/set-password
- * Body: { email: string, password: string, name?: string }
- *
- * Behavior:
- *  - This endpoint is for NEW account creation only.
- *  - If a user with the provided email already exists, it returns 409 and a clear message.
- *  - It does NOT overwrite existing users' passwords (prevents accidental overwrite).
- *  - For password resets / updates, implement a separate endpoint (recommended).
- */
-
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
 
