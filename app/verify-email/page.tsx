@@ -242,16 +242,6 @@ export default function VerifyEmailPage() {
 
             {/* 補助テキストや対処ボタン */}
             <div className="mt-4 flex flex-wrap gap-2 items-center">
-              {status === "pending" && (
-                <button
-                  className="surface-btn"
-                  onClick={() => router.push("/login")}
-                  aria-label="ログイン画面に戻る"
-                >
-                  ログインに戻る
-                </button>
-              )}
-
               {status === "success" && (
                 <button
                   className="continue-btn"
