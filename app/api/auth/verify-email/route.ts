@@ -13,11 +13,17 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get("token");
-    if (!token)
-      return NextResponse.json(
-        { ok: false, message: "token required" },
-        { status: 400 },
-      );
+    if (!token) {
+      // JSON の場合は JSON を返す（フロント呼び出し）
+      const accept = req.headers.get("accept") ?? "";
+      if (accept.includes("application/json")) {
+        return NextResponse.json(
+          { ok: false, message: "token required" },
+          { status: 400 },
+        );
+      }
+      return NextResponse.redirect(`${BASE_URL}/verify-request?status=invalid`);
+    }
 
     const tokenHash = hashToken(token);
 
@@ -27,36 +33,55 @@ export async function GET(req: Request) {
     });
 
     if (!ev) {
+      const accept = req.headers.get("accept") ?? "";
+      if (accept.includes("application/json")) {
+        return NextResponse.json(
+          { ok: false, message: "invalid_or_expired" },
+          { status: 400 },
+        );
+      }
       const redirectUrl = `${BASE_URL}/verify-request?status=invalid`;
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Mark used
+    // mark used
     await prisma.emailVerification.update({
       where: { id: ev.id },
       data: { used: true },
     });
 
     if (ev.pendingUser) {
-      // 仮登録の昇格フロー
       const pending = ev.pendingUser;
-      // 再チェック: 既に同じ email の User がいるか
+      // check existing user with same email
       const existingUser = await prisma.user.findUnique({
         where: { email: pending.email },
       });
 
       if (existingUser) {
-        // 競合（稀）: 既にユーザーが作られていたら pending を削除して既存を有効化
         await prisma.pendingUser.delete({ where: { id: pending.id } });
         await prisma.user.update({
           where: { id: existingUser.id },
           data: { emailVerified: new Date() },
         });
-        const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(existingUser.email ?? "")}`;
-        return NextResponse.redirect(redirectTo);
+
+        const accept = req.headers.get("accept") ?? "";
+        if (accept.includes("application/json")) {
+          return NextResponse.json(
+            {
+              ok: true,
+              action: "verified",
+              email: existingUser.email,
+              redirect: "/home",
+            },
+            { status: 200 },
+          );
+        }
+        return NextResponse.redirect(
+          `${BASE_URL}/post-verify?email=${encodeURIComponent(existingUser.email ?? "")}`,
+        );
       }
 
-      // 新規ユーザー作成（昇格）
+      // create real user
       const newUser = await prisma.user.create({
         data: {
           email: pending.email,
@@ -67,29 +92,61 @@ export async function GET(req: Request) {
         },
       });
 
-      // 仮登録データの削除（クリーンアップ）
+      // delete pending
       await prisma.pendingUser.delete({ where: { id: pending.id } });
 
-      const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(newUser.email ?? "")}`;
-      return NextResponse.redirect(redirectTo);
+      const accept = req.headers.get("accept") ?? "";
+      if (accept.includes("application/json")) {
+        return NextResponse.json(
+          {
+            ok: true,
+            action: "created",
+            email: newUser.email,
+            redirect: "/home",
+          },
+          { status: 200 },
+        );
+      }
+      return NextResponse.redirect(
+        `${BASE_URL}/post-verify?email=${encodeURIComponent(newUser.email ?? "")}`,
+      );
     }
 
     if (ev.user) {
-      // 既存ユーザー向けの旧フロー
       await prisma.user.update({
         where: { id: ev.userId as string },
         data: { emailVerified: new Date() },
       });
-
-      const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(ev.user.email ?? "")}`;
-      return NextResponse.redirect(redirectTo);
+      const accept = req.headers.get("accept") ?? "";
+      if (accept.includes("application/json")) {
+        return NextResponse.json(
+          {
+            ok: true,
+            action: "updated",
+            email: ev.user.email,
+            redirect: "/home",
+          },
+          { status: 200 },
+        );
+      }
+      return NextResponse.redirect(
+        `${BASE_URL}/post-verify?email=${encodeURIComponent(ev.user.email ?? "")}`,
+      );
     }
 
-    // ここには通常来ないが保険
-    const redirectUrl = `${BASE_URL}/verify-request?status=invalid`;
-    return NextResponse.redirect(redirectUrl);
+    // Fallback
+    const accept = req.headers.get("accept") ?? "";
+    if (accept.includes("application/json")) {
+      return NextResponse.json(
+        { ok: false, message: "invalid" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.redirect(`${BASE_URL}/verify-request?status=invalid`);
   } catch (err: any) {
-    console.error("[verify-email] error:", err);
+    console.error("[verify-email] error (no secret output)", {
+      err: String(err),
+    });
     return NextResponse.json(
       { ok: false, message: "server error" },
       { status: 500 },

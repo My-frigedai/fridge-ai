@@ -3,37 +3,33 @@ export const runtime = "nodejs";
 
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import EmailProvider from "next-auth/providers/email";
+// EmailProvider intentionally removed to avoid duplicate emails with custom flow
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
+/**
+ * Production-safe NextAuth configuration
+ * - EmailProvider removed so NextAuth will NOT send magic-link emails.
+ * - Keep Google OAuth and Credentials (email+password) untouched.
+ * - Add secure cookie/session defaults suitable for production.
+ * - Do not leak secrets in logs (debug disabled in production).
+ */
+
+const isProd = process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
   providers: [
-    // --- Google OAuth ---
+    // Google OAuth (unchanged)
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
 
-    // --- Email Magic Link (唯一のメール認証) ---
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_HOST,
-        port: Number(process.env.EMAIL_PORT || 587),
-        secure: Number(process.env.EMAIL_PORT || 587) === 465,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM,
-    }),
-
-    // --- Credentials (email + password) ---
+    // Credentials (email + password) — keep behavior identical to before
     CredentialsProvider({
       id: "credentials",
       name: "Email & Password",
@@ -42,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) return null;
+        if (!credentials?.email || !credentials?.password) return null;
 
         const email = credentials.email.toLowerCase().trim();
         const user = await prisma.user.findUnique({ where: { email } });
@@ -64,29 +60,39 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
 
-  // --- Session ---
+  // Session: JWT strategy (same as before) with production-friendly cookie settings
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  // --- Pages ---
+  // Cookie options: ensure secure flag in production and SameSite Lax (reasonable default)
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: isProd,
+      },
+    },
+  },
+
+  // Pages — keep the same custom pages
   pages: {
     signIn: "/login",
     verifyRequest: "/verify-request",
     error: "/login?error",
   },
 
-  // --- Callbacks ---
+  // Callbacks: keep existing checks but remove special-case for provider === "email"
   callbacks: {
     async signIn({ user, account }) {
       if (!user?.id) return false;
 
-      // Email magic link は NextAuth に完全委任
-      if (account?.provider === "email") {
-        return true;
-      }
-
+      // For OAuth providers (e.g. Google) we still validate DB state
+      // Email magic links handled by custom flow; NextAuth email provider is disabled.
       const dbUser = await prisma.user.findUnique({
         where: { id: user.id as string },
         select: {
@@ -119,8 +125,11 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
+  // Don't enable debug logs in production
+  debug: !isProd,
+
+  // Secret must exist in production
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV !== "production",
 };
 
 const handler = NextAuth(authOptions);
