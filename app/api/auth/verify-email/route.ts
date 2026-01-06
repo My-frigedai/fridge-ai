@@ -21,10 +21,10 @@ export async function GET(req: Request) {
 
     const tokenHash = hashToken(token);
 
-    const ev = (await prisma.emailVerification.findFirst({
+    const ev = await prisma.emailVerification.findFirst({
       where: { tokenHash, used: false, expiresAt: { gt: new Date() } },
-      include: { user: true },
-    })) as any;
+      include: { pendingUser: true, user: true },
+    });
 
     if (!ev) {
       const redirectUrl = `${BASE_URL}/verify-request?status=invalid`;
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
       if (existingUser) {
         // 競合（稀）: 既にユーザーが作られていたら pending を削除して既存を有効化
-        await (prisma as any).pendingUser.delete({ where: { id: pending.id } });
+        await prisma.pendingUser.delete({ where: { id: pending.id } });
         await prisma.user.update({
           where: { id: existingUser.id },
           data: { emailVerified: new Date() },
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
       });
 
       // 仮登録データの削除（クリーンアップ）
-      await (prisma as any).pendingUser.delete({ where: { id: pending.id } });
+      await prisma.pendingUser.delete({ where: { id: pending.id } });
 
       const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(newUser.email ?? "")}`;
       return NextResponse.redirect(redirectTo);
