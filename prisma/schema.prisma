@@ -21,7 +21,7 @@ model User {
   verifyExpires     DateTime?
   accounts          Account[]
   AuthChallenges    AuthChallenge[]
-  EmailVerification EmailVerification[]
+  EmailVerification EmailVerification[]    // EmailVerification.user (legacy / post-verify)
   Favorite          Favorite[]
   Ingredient        Ingredient[]
   Menu              Menu[]
@@ -30,6 +30,32 @@ model User {
   sessions          Session[]
   TrustedDevice     TrustedDevice[]
   UsageHistory      UsageHistory[]
+}
+
+/// 仮登録ユーザー（メール検証待ち）
+model PendingUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  password     String?  // hashed password
+  token        String?  @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  // EmailVerification が pendingUserId を参照する可能性がある
+  EmailVerification EmailVerification[]
+}
+
+/// WebAuthn passkey representation
+model Passkey {
+  id           String   @id @default(cuid())
+  userId       String
+  credentialId String   @unique
+  publicKey    String
+  signCount    Int
+  transports   String?
+  name         String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -66,22 +92,7 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-/// *
-///  * WebAuthn passkey representation
-model Passkey {
-  id           String   @id @default(cuid())
-  userId       String
-  credentialId String   @unique
-  publicKey    String
-  signCount    Int
-  transports   String?
-  name         String?
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-/// *
-///  * Short-lived stored challenges for webauthn (authenticate without email flow)
+/// Short-lived stored challenges for webauthn (authenticate without email flow)
 model AuthChallenge {
   id        String    @id @default(cuid())
   challenge String    @unique
@@ -93,14 +104,16 @@ model AuthChallenge {
 }
 
 model EmailVerification {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique
-  code      String
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  userId         String?                   // legacy / post-verify: references User.id
+  pendingUserId  String?                   // new: references PendingUser.id (pre-verify)
+  tokenHash      String    @unique
+  code           String
+  expiresAt      DateTime
+  used           Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pendingUser    PendingUser? @relation(fields: [pendingUserId], references: [id], onDelete: Cascade)
 }
 
 model PasswordReset {

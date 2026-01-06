@@ -21,31 +21,73 @@ export async function GET(req: Request) {
 
     const tokenHash = hashToken(token);
 
-    const ev = await prisma.emailVerification.findFirst({
+    const ev = (await prisma.emailVerification.findFirst({
       where: { tokenHash, used: false, expiresAt: { gt: new Date() } },
-    });
+      include: { user: true },
+    })) as any;
 
     if (!ev) {
-      // invalid or expired
-      // redirect to a friendly page (you can create a client page to show the message)
       const redirectUrl = `${BASE_URL}/verify-request?status=invalid`;
       return NextResponse.redirect(redirectUrl);
     }
 
-    // mark used and set user's emailVerified
+    // Mark used
     await prisma.emailVerification.update({
       where: { id: ev.id },
       data: { used: true },
     });
 
-    await prisma.user.update({
-      where: { id: ev.userId },
-      data: { emailVerified: new Date() },
-    });
+    if (ev.pendingUser) {
+      // 仮登録の昇格フロー
+      const pending = ev.pendingUser;
+      // 再チェック: 既に同じ email の User がいるか
+      const existingUser = await prisma.user.findUnique({
+        where: { email: pending.email },
+      });
 
-    // redirect user to passkey suggestion page
-    const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent((await prisma.user.findUnique({ where: { id: ev.userId } }))?.email ?? "")}`;
-    return NextResponse.redirect(redirectTo);
+      if (existingUser) {
+        // 競合（稀）: 既にユーザーが作られていたら pending を削除して既存を有効化
+        await (prisma as any).pendingUser.delete({ where: { id: pending.id } });
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { emailVerified: new Date() },
+        });
+        const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(existingUser.email ?? "")}`;
+        return NextResponse.redirect(redirectTo);
+      }
+
+      // 新規ユーザー作成（昇格）
+      const newUser = await prisma.user.create({
+        data: {
+          email: pending.email,
+          name: pending.name ?? undefined,
+          password: pending.password ?? undefined,
+          status: "active",
+          emailVerified: new Date(),
+        },
+      });
+
+      // 仮登録データの削除（クリーンアップ）
+      await (prisma as any).pendingUser.delete({ where: { id: pending.id } });
+
+      const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(newUser.email ?? "")}`;
+      return NextResponse.redirect(redirectTo);
+    }
+
+    if (ev.user) {
+      // 既存ユーザー向けの旧フロー
+      await prisma.user.update({
+        where: { id: ev.userId as string },
+        data: { emailVerified: new Date() },
+      });
+
+      const redirectTo = `${BASE_URL}/post-verify?email=${encodeURIComponent(ev.user.email ?? "")}`;
+      return NextResponse.redirect(redirectTo);
+    }
+
+    // ここには通常来ないが保険
+    const redirectUrl = `${BASE_URL}/verify-request?status=invalid`;
+    return NextResponse.redirect(redirectUrl);
   } catch (err: any) {
     console.error("[verify-email] error:", err);
     return NextResponse.json(
