@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 type Status = "pending" | "success" | "invalid" | "error";
 
 export default function VerifyEmailPage() {
